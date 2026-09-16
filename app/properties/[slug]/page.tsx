@@ -81,7 +81,7 @@ export default async function PropertyDetailPage({ params }: Props) {
         <div>
           <Badge variant="secondary">{roomTypeLabel(property.roomType)}</Badge>
 
-          <h1 className="mt-3 text-3xl font-semibold tracking-tight text-balance md:text-4xl">
+          <h1 className="text-display mt-3 text-3xl text-balance md:text-4xl">
             {property.title}
           </h1>
 
@@ -107,7 +107,7 @@ export default async function PropertyDetailPage({ params }: Props) {
           <Separator className="my-8" />
 
           <section>
-            <h2 className="font-semibold">About this property</h2>
+            <h2 className="font-display text-lg font-semibold">About this property</h2>
             <p className="mt-3 leading-relaxed text-muted-foreground text-pretty">
               {property.description}
             </p>
@@ -115,7 +115,7 @@ export default async function PropertyDetailPage({ params }: Props) {
 
           {property.amenities.length > 0 ? (
             <section className="mt-8">
-              <h2 className="font-semibold">What&apos;s included</h2>
+              <h2 className="font-display text-lg font-semibold">What&apos;s included</h2>
               <ul className="mt-4 grid gap-2.5 sm:grid-cols-2">
                 {property.amenities.map((amenity) => (
                   <li key={amenity} className="flex items-center gap-2.5 text-sm">
@@ -130,7 +130,7 @@ export default async function PropertyDetailPage({ params }: Props) {
 
         <aside className="lg:sticky lg:top-20 lg:self-start">
           <div className="rounded-xl border border-border p-5">
-            <h2 className="font-semibold">Enquire about this property</h2>
+            <h2 className="font-display text-lg font-semibold">Enquire about this property</h2>
             <p className="mt-1 text-sm text-muted-foreground">
               Send a message and the team will get back to you by email.
             </p>

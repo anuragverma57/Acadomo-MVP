@@ -20,7 +20,7 @@ export function PropertyCard({
   signedIn?: boolean;
 }) {
   return (
-    <Card className="group overflow-hidden p-0 transition-shadow focus-within:ring-2 focus-within:ring-ring/50 hover:shadow-md">
+    <Card className="group overflow-hidden border-border p-0 shadow-none transition-all duration-200 focus-within:ring-2 focus-within:ring-ring/50 hover:-translate-y-0.5 hover:border-foreground/25">
       <Link href={`/properties/${property.slug}`} className="block outline-none">
         <div className="relative aspect-[4/3] overflow-hidden bg-muted">
           <Image
@@ -29,7 +29,7 @@ export function PropertyCard({
             fill
             sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
             priority={priority}
-            className="object-cover transition-transform duration-300 group-hover:scale-105"
+            className="object-cover transition-transform duration-500 ease-out group-hover:scale-[1.04]"
           />
           <Badge
             variant="secondary"
@@ -46,9 +46,9 @@ export function PropertyCard({
           </div>
         </div>
 
-        <CardContent className="space-y-3 p-4">
-          <div className="space-y-1">
-            <h3 className="line-clamp-1 font-semibold tracking-tight">
+        <CardContent className="space-y-3 p-5">
+          <div className="space-y-1.5">
+            <h3 className="font-display line-clamp-1 text-base font-semibold tracking-tight">
               {property.title}
             </h3>
             <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
@@ -61,11 +61,11 @@ export function PropertyCard({
             </p>
           </div>
 
-          <p className="pt-1">
-            <span className="text-lg font-semibold">
+          <p className="flex items-baseline gap-1 border-t border-border pt-3">
+            <span className="font-display tabular text-xl font-bold tracking-tight">
               {formatPrice(property.pricePerWeek, property.currency)}
             </span>
-            <span className="text-sm text-muted-foreground"> / week</span>
+            <span className="text-sm text-muted-foreground">/ week</span>
           </p>
         </CardContent>
       </Link>

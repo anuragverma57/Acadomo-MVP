@@ -34,14 +34,14 @@ export default async function AccountPage() {
     <div className="mx-auto max-w-3xl px-4 py-8 md:py-12">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Your account</h1>
+          <h1 className="text-display text-3xl">Your account</h1>
           <p className="mt-1 text-sm text-muted-foreground">{student.email}</p>
         </div>
         <StudentSignOut />
       </div>
 
       <section className="mt-10">
-        <h2 className="font-semibold">Your enquiries</h2>
+        <h2 className="font-display text-lg font-semibold">Your enquiries</h2>
 
         {enquiries.length === 0 ? (
           <div className="mt-4 flex flex-col items-center rounded-lg border border-dashed border-border py-14 text-center">

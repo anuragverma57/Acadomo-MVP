@@ -18,7 +18,7 @@ export default async function AdminLoginPage() {
 
   return (
     <div className="mx-auto flex min-h-[70vh] max-w-sm flex-col justify-center px-4 py-12">
-      <h1 className="text-2xl font-semibold tracking-tight">Admin sign in</h1>
+      <h1 className="text-display text-3xl">Admin sign in</h1>
       <p className="mt-1.5 text-sm text-muted-foreground">
         Manage student enquiries for AcaDomo.
       </p>

@@ -24,7 +24,7 @@ export default async function SavedPage() {
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 md:py-12">
-      <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">
+      <h1 className="text-display text-3xl md:text-4xl">
         Your shortlist
       </h1>
       <p className="mt-1.5 text-sm text-muted-foreground">
@@ -38,7 +38,7 @@ export default async function SavedPage() {
           <div className="rounded-full bg-muted p-3">
             <Heart className="size-6 text-muted-foreground" aria-hidden />
           </div>
-          <h2 className="mt-4 font-semibold">No saved properties yet</h2>
+          <h2 className="font-display mt-4 text-lg font-semibold">No saved properties yet</h2>
           <p className="mt-1 max-w-sm text-sm text-muted-foreground text-pretty">
             Tap the heart on any property to add it to your shortlist and compare
             later.

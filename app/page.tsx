@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { SearchX } from "lucide-react";
 
 import { FilterBar } from "@/components/filter-bar";
+import { Hero } from "@/components/hero";
 import { PropertyCard, PropertyCardSkeleton } from "@/components/property-card";
 import { Button } from "@/components/ui/button";
 import { currentStudentWithSaved } from "@/lib/session";
@@ -41,15 +42,25 @@ async function PropertyResults({ searchParams }: { searchParams: SearchParams })
 
   // Server Components query the database directly — fetching our own API route
   // here would be a pointless network hop (CLAUDE.md §4).
-  const [page, options, { student, savedIds }] = await Promise.all([
+  const [page, options, { student, savedIds }, catalogue] = await Promise.all([
     searchProperties(filters),
     loadFilterOptions(),
     currentStudentWithSaved(),
+    // Unfiltered count, so the hero stat does not change as filters are applied.
+    searchProperties(propertyFiltersSchema.parse({ pageSize: "1" })),
   ]);
+  const totalCatalogue = catalogue.total;
 
   return (
     <>
-      <FilterBar options={options} resultCount={page.total} />
+      <Hero
+        universities={options.universities}
+        propertyCount={totalCatalogue}
+        cityCount={options.cities.length}
+      />
+
+      <div className="mx-auto max-w-6xl space-y-6 px-4 py-8 md:px-6 md:py-10">
+        <FilterBar options={options} resultCount={page.total} />
 
       {page.items.length === 0 ? (
         <EmptyState />
@@ -67,9 +78,10 @@ async function PropertyResults({ searchParams }: { searchParams: SearchParams })
         </div>
       )}
 
-      {page.totalPages > 1 ? (
-        <Pagination page={page.page} totalPages={page.totalPages} params={raw} />
-      ) : null}
+        {page.totalPages > 1 ? (
+          <Pagination page={page.page} totalPages={page.totalPages} params={raw} />
+        ) : null}
+      </div>
     </>
   );
 }
@@ -125,7 +137,7 @@ function Pagination({
 
 function ResultsSkeleton() {
   return (
-    <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="mx-auto grid max-w-6xl gap-5 px-4 py-16 sm:grid-cols-2 md:px-6 lg:grid-cols-3">
       {Array.from({ length: 6 }, (_, i) => (
         <PropertyCardSkeleton key={i} />
       ))}
@@ -135,22 +147,8 @@ function ResultsSkeleton() {
 
 export default function HomePage({ searchParams }: { searchParams: SearchParams }) {
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 md:py-12">
-      <section className="max-w-2xl">
-        <h1 className="text-3xl font-semibold tracking-tight text-balance md:text-4xl">
-          Student accommodation, without the guesswork.
-        </h1>
-        <p className="mt-3 text-muted-foreground text-pretty">
-          Compare verified student housing near your university. Filter by city,
-          university, room type and budget.
-        </p>
-      </section>
-
-      <div className="mt-8 space-y-6">
-        <Suspense fallback={<ResultsSkeleton />}>
-          <PropertyResults searchParams={searchParams} />
-        </Suspense>
-      </div>
-    </div>
+    <Suspense fallback={<ResultsSkeleton />}>
+      <PropertyResults searchParams={searchParams} />
+    </Suspense>
   );
 }

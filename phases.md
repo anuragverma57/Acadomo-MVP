@@ -265,6 +265,39 @@ Deliberately no component or E2E tests. The README states this trade-off plainly
 
 ---
 
+## Phase 6.5 — Visual Design Pass
+**Goal:** make it look designed, not defaulted.
+**Est: 2.5–3 hrs**
+
+Direction: **editorial & warm**. Reference craft (font pairing, type scale,
+section rhythm) taken from design-led studio sites; their theatrics (scroll
+jacking, parallax, decorative marquees) deliberately left out — AcaDomo is a
+product a student scans quickly, not a brochure.
+
+- [x] **Typography:** Space Grotesk (display) + Inter (body/UI) via `next/font`
+  - [x] Hero scale `text-5xl → text-7xl`, tracking `-0.03em`, tight leading
+  - [x] `tabular-nums` on prices so they align down the grid
+- [x] **Palette:** warm off-white ground, warm ink text, deepened teal accent;
+      warm charcoal in dark mode (not blue-black)
+- [x] **Navbar:** transparent over hero → blurred + hairline border on scroll;
+      display face on the logo; sign-in as a real button
+- [x] **Hero (~60vh, results stay visible):** large headline, search inline,
+      **university marquee** built from real `getFilterOptions()` values,
+      each chip links to that university's filter — information, not decoration
+- [x] **Cards:** hairline borders (no drop shadows), price as focal point,
+      hover lifts 2px + border darkens
+- [x] **Motion:** CSS-only fade-up ~250ms, marquee pauses on hover,
+      **everything inside `prefers-reduced-motion`**
+- [x] **No new dependencies** — `next/font` + CSS only
+
+**Verify:** every screen (listing, detail, signup, saved, account, admin, login,
+404) checked in **both themes** at **375px and desktop** · `npm test` still green
+· build + lint clean · reduced-motion honoured
+
+> **Commit Checkpoint 6.5** — `feat(ui): editorial design system, hero, and navbar polish`
+
+---
+
 ## Phase 7 — Deployment
 **Goal:** a live URL a stranger can open.
 **Est: 45 min**

@@ -47,7 +47,7 @@ export default async function AdminDashboardPage({ searchParams }: Props) {
     <div className="mx-auto max-w-6xl px-4 py-8 md:py-10">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Enquiries</h1>
+          <h1 className="text-display text-3xl">Enquiries</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Signed in as {session.email}
             <span className="text-muted-foreground/60"> · {session.role}</span>
