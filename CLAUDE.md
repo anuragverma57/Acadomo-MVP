@@ -301,6 +301,14 @@ pipeline. State the limited scope plainly in the README.
 - **Port 3000 is often occupied** by another local app. This project's dev server
   runs on **3100** (`npm run dev -- --port 3100`). Two servers sharing port 3000
   across IPv4/IPv6 silently serve the wrong app to `curl`.
+- **Supabase Postgres:** use the **transaction pooler** (port 6543), not the
+  direct connection — serverless opens many short-lived connections. Supabase
+  presents a cert from its own root CA (bundled at `db/certs/supabase-ca.crt`,
+  valid to 2031), so TLS is pinned to that CA rather than verification being
+  disabled. `npm run db:check` prints the real socket state.
+- **`pg_stat_ssl` lies through a pooler.** It reports the pooler's own backend
+  connection, not the client link, so it reads `ssl=false` on a TLSv1.3
+  connection. Read `client.connection.stream.encrypted/authorized` instead.
 - **shadcn style is `base-nova`, built on Base UI — not Radix.** Components take
   a `render` prop, not `asChild`. `DropdownMenuTrigger` renders its own button,
   so style it with `buttonVariants(...)` rather than nesting a `<Button>`.

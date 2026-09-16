@@ -11,7 +11,8 @@
     "db:reset": "psql \"$(grep -m1 '^DATABASE_URL=' .env.local | cut -d= -f2-)\" -v ON_ERROR_STOP=1 -q -f db/schema.sql && echo '\u2713 schema applied'",
     "db:seed": "tsx --import ./db/load-env.ts db/seed.ts",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "db:check": "tsx --import ./db/load-env.ts db/check-db.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

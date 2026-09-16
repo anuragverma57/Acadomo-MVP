@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { Pool, types, type PoolClient } from "pg";
 
 // pg returns bigint (int8) as a string to avoid precision loss. Our ids are
@@ -7,6 +10,23 @@ types.setTypeParser(types.builtins.INT8, (value) => Number.parseInt(value, 10));
 
 // numeric -> number as well, for any future aggregate (counts, averages).
 types.setTypeParser(types.builtins.NUMERIC, (value) => Number.parseFloat(value));
+
+let cachedCa: string | undefined;
+
+/** Supabase root CA, bundled in db/certs. Read once and cached. */
+function supabaseCa(): string | undefined {
+  if (cachedCa !== undefined) return cachedCa || undefined;
+  try {
+    cachedCa = readFileSync(
+      join(process.cwd(), "db", "certs", "supabase-ca.crt"),
+      "utf8",
+    );
+  } catch {
+    // Not a Supabase deployment (or cert missing) — fall back to Node's store.
+    cachedCa = "";
+  }
+  return cachedCa || undefined;
+}
 
 declare global {
   var __acadomoPool: Pool | undefined;
@@ -21,13 +41,26 @@ function createPool(): Pool {
     );
   }
 
+  const isLocal =
+    connectionString.includes("localhost") ||
+    connectionString.includes("127.0.0.1");
+
+  // Supabase/Neon transaction-mode poolers multiplex many clients onto few
+  // server connections, so each app instance should hold only a couple.
+  const isPooler =
+    connectionString.includes("pooler.") || connectionString.includes(":6543");
+
   return new Pool({
     connectionString,
-    // Neon and most hosted Postgres require TLS; local dev does not offer it.
-    ssl: connectionString.includes("localhost")
-      ? undefined
-      : { rejectUnauthorized: true },
-    max: 10,
+    // Hosted Postgres requires TLS; local dev does not offer it.
+    //
+    // Supabase presents a cert from its own root CA, which is not in Node's
+    // trust store — so plain rejectUnauthorized:true fails. Pinning that CA
+    // gives fully VERIFIED TLS rather than merely encrypted: without it we
+    // would have to disable verification and accept any certificate, which
+    // leaves the connection open to interception.
+    ssl: isLocal ? undefined : { ca: supabaseCa(), rejectUnauthorized: true },
+    max: isPooler ? 3 : 10,
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 10_000,
   });
