@@ -251,11 +251,11 @@ save a property, sign out, sign back in, shortlist persists · both themes · 37
 **Goal:** small, honest suite over the security-relevant logic.
 **Est: 45 min**
 
-- [ ] Vitest configured, `npm test` script
-- [ ] `validation.test.ts` — enquiry schema: valid passes; bad email, bad phone, missing name, oversized message all fail
-- [ ] `queries.test.ts` — filter builder: combined filters compose correctly; sort key outside the allowlist falls back to the default instead of reaching SQL
-- [ ] `auth.test.ts` — hash/verify round-trip; wrong password rejected; a `realm=student` token fails an admin check
-- [ ] `otp.test.ts` — **the highest-value tests here**: expired code rejected · 6th attempt rejected · consumed code cannot be reused · correct code within limits succeeds
+- [x] Vitest configured, `npm test` script
+- [x] `validation.test.ts` — enquiry schema: valid passes; bad email, bad phone, missing name, oversized message all fail
+- [x] `queries.test.ts` — filter builder: combined filters compose correctly; sort key outside the allowlist falls back to the default instead of reaching SQL
+- [x] `auth.test.ts` — hash/verify round-trip; wrong password rejected; a `realm=student` token fails an admin check
+- [x] `otp.test.ts` — **the highest-value tests here**: expired code rejected · 6th attempt rejected · consumed code cannot be reused · correct code within limits succeeds
 
 Deliberately no component or E2E tests. The README states this trade-off plainly.
 

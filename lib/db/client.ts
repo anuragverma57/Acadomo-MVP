@@ -33,12 +33,22 @@ function createPool(): Pool {
   });
 }
 
-// Next.js dev server hot-reloads modules on every edit. Without this cache each
-// reload would open a new pool and exhaust Postgres connections within minutes.
-export const pool: Pool = globalThis.__acadomoPool ?? createPool();
-
-if (process.env.NODE_ENV !== "production") {
-  globalThis.__acadomoPool = pool;
+/**
+ * Lazily created on first use.
+ *
+ * Creating the pool at module scope would make importing ANY query module
+ * require a live DATABASE_URL — which breaks unit tests of pure helpers, and
+ * would crash a build step that merely imports the module.
+ *
+ * Next.js dev hot-reloads modules on every edit, so the instance is cached on
+ * globalThis; without that, each reload would open a new pool and exhaust
+ * Postgres connections within minutes.
+ */
+export function getPool(): Pool {
+  if (!globalThis.__acadomoPool) {
+    globalThis.__acadomoPool = createPool();
+  }
+  return globalThis.__acadomoPool;
 }
 
 /**
@@ -49,7 +59,7 @@ export async function query<T extends Record<string, unknown>>(
   text: string,
   params: readonly unknown[] = [],
 ): Promise<T[]> {
-  const result = await pool.query<T>(text, params as unknown[]);
+  const result = await getPool().query<T>(text, params as unknown[]);
   return result.rows;
 }
 
@@ -69,7 +79,7 @@ export async function queryOne<T extends Record<string, unknown>>(
 export async function transaction<T>(
   fn: (client: PoolClient) => Promise<T>,
 ): Promise<T> {
-  const client = await pool.connect();
+  const client = await getPool().connect();
   try {
     await client.query("BEGIN");
     const result = await fn(client);

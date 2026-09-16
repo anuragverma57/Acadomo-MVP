@@ -4,7 +4,7 @@
  */
 import bcrypt from "bcryptjs";
 
-import { pool, query } from "../lib/db/client";
+import { getPool, query } from "../lib/db/client";
 
 type SeedProperty = {
   title: string;
@@ -241,9 +241,9 @@ async function seed() {
 }
 
 seed()
-  .then(() => pool.end())
+  .then(() => getPool().end())
   .catch((error) => {
     console.error("Seed failed:", error);
-    pool.end();
+    getPool().end();
     process.exit(1);
   });

@@ -17,6 +17,18 @@ export type EnquiryStatus = (typeof ENQUIRY_STATUSES)[number];
 
 export const MAX_PAGE_SIZE = 24;
 
+/**
+ * Email input. Trimming must happen BEFORE validation: `z.email().trim()`
+ * validates first, so a pasted address with a trailing space is rejected
+ * instead of cleaned up. Piping through string().trim() fixes the order.
+ */
+const emailSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .max(255)
+  .pipe(z.email("Enter a valid email address"));
+
 /** Coerces "" and absent to undefined so blank query params don't fail parsing. */
 const optionalText = z
   .string()
@@ -67,7 +79,7 @@ const phoneSchema = z
 export const enquiryInputSchema = z.object({
   propertyId: z.coerce.number().int().positive(),
   name: z.string().trim().min(2, "Enter your name").max(100),
-  email: z.email("Enter a valid email address").trim().toLowerCase().max(255),
+  email: emailSchema,
   phone: phoneSchema,
   message: z
     .string()
@@ -87,18 +99,18 @@ export const enquiryInputSchema = z.object({
 export type EnquiryInput = z.infer<typeof enquiryInputSchema>;
 
 export const adminLoginSchema = z.object({
-  email: z.email("Enter a valid email address").trim().toLowerCase().max(255),
+  email: emailSchema,
   password: z.string().min(1, "Enter your password").max(200),
 });
 
 export type AdminLogin = z.infer<typeof adminLoginSchema>;
 
 export const requestOtpSchema = z.object({
-  email: z.email("Enter a valid email address").trim().toLowerCase().max(255),
+  email: emailSchema,
 });
 
 export const verifyOtpSchema = z.object({
-  email: z.email("Enter a valid email address").trim().toLowerCase().max(255),
+  email: emailSchema,
   code: z
     .string()
     .trim()
