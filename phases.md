@@ -161,15 +161,15 @@ and nothing depends on hover.
 **Goal:** prove auth, protected routes, and role-based access.
 **Est: 1.5 hrs**
 
-- [ ] `lib/auth.ts` — bcrypt verify (cost 12), JWT sign/verify via `jose`, `getSession()` helper reading the cookie. Tokens carry a **`realm` claim** (`admin` | `student`) and use distinct cookie names — a student token must never satisfy an admin check
-- [ ] `POST /api/admin/login` — verify credentials, set `httpOnly` + `secure` + `sameSite=lax` cookie, 2h expiry. **Identical generic error** for wrong email and wrong password (no user enumeration)
-- [ ] `POST /api/admin/logout` — clears cookie
-- [ ] `middleware.ts` — redirects unauthenticated `/admin/*` to login
-- [ ] **Each `/api/admin/*` handler independently verifies the session and role.** Middleware is UX; the handler check is the actual security boundary
-- [ ] `app/admin/login/page.tsx` — minimal centered form
-- [ ] `app/admin/page.tsx` — enquiries table (shadcn `table`): date, property, name, email, phone, message, status
-- [ ] Mark-contacted action → `PATCH /api/admin/enquiries/[id]` → optimistic UI or `router.refresh()`
-- [ ] Filter tabs: All / New / Contacted; logout button
+- [x] `lib/auth.ts` — bcrypt verify (cost 12), JWT sign/verify via `jose`, `getSession()` helper reading the cookie. Tokens carry a **`realm` claim** (`admin` | `student`) and use distinct cookie names — a student token must never satisfy an admin check
+- [x] `POST /api/admin/login` — verify credentials, set `httpOnly` + `secure` + `sameSite=lax` cookie, 2h expiry. **Identical generic error** for wrong email and wrong password (no user enumeration)
+- [x] `POST /api/admin/logout` — clears cookie
+- [x] `middleware.ts` — redirects unauthenticated `/admin/*` to login
+- [x] **Each `/api/admin/*` handler independently verifies the session and role.** Middleware is UX; the handler check is the actual security boundary
+- [x] `app/admin/login/page.tsx` — minimal centered form
+- [x] `app/admin/page.tsx` — enquiries table (shadcn `table`): date, property, name, email, phone, message, status
+- [x] Mark-contacted action → `PATCH /api/admin/enquiries/[id]` → optimistic UI or `router.refresh()`
+- [x] Filter tabs: All / New / Contacted; logout button
 
 **Verify:** hit `/admin` logged out → redirected · `curl` the admin API with no cookie → **401** · a student session cookie on an admin route → **401** · wrong password → generic error · mark contacted → persists across reload
 

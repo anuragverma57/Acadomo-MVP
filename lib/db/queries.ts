@@ -371,3 +371,39 @@ export async function countEnquiriesByStatus(): Promise<
   }
   return counts;
 }
+
+// ---------------------------------------------------------------------------
+// Admin users
+// ---------------------------------------------------------------------------
+
+export type AdminUser = {
+  id: number;
+  email: string;
+  passwordHash: string;
+  role: string;
+};
+
+/**
+ * Selects the password hash — the ONLY query that may. Call this solely from
+ * the authentication path, never to display a user (CLAUDE.md §3).
+ */
+export async function findAdminByEmail(email: string): Promise<AdminUser | null> {
+  const row = await queryOne<{
+    id: number;
+    email: string;
+    password_hash: string;
+    role: string;
+  }>(
+    "SELECT id, email, password_hash, role FROM admin_users WHERE email = $1",
+    [email],
+  );
+
+  if (!row) return null;
+
+  return {
+    id: row.id,
+    email: row.email,
+    passwordHash: row.password_hash,
+    role: row.role,
+  };
+}
