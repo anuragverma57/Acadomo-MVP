@@ -142,14 +142,14 @@ and nothing depends on hover.
 **Goal:** close the student loop end to end.
 **Est: 1.5 hrs**
 
-- [ ] `app/properties/[slug]/page.tsx` — Server Component, hero image, title, city/university, price, description, amenities list
-- [ ] `generateMetadata` per property — title + description + OG tags (cheap SEO signal; the JD names SEO)
-- [ ] `not-found.tsx` for a bad slug
-- [ ] `components/enquiry-form.tsx` — `"use client"`, shadcn `Form` + `react-hook-form` + `zodResolver` sharing **the same Zod schema as the server**, inline field errors, disabled + spinner while submitting, hidden honeypot input
+- [x] `app/properties/[slug]/page.tsx` — Server Component, hero image, title, city/university, price, description, amenities list
+- [x] `generateMetadata` per property — title + description + OG tags (cheap SEO signal; the JD names SEO)
+- [x] `not-found.tsx` for a bad slug
+- [x] `components/enquiry-form.tsx` — `"use client"`, shadcn `Form` + `react-hook-form` + `zodResolver` sharing **the same Zod schema as the server**, inline field errors, disabled + spinner while submitting, hidden honeypot input
 - [ ] If a student is signed in, name/email prefill and the enquiry links to their account (see Phase 5.5)
-- [ ] Success state: inline confirmation replacing the form (no page nav needed)
-- [ ] Server error surfaces as a readable message, not a silent failure
-- [ ] "Back to listings" preserving prior filters
+- [x] Success state: inline confirmation replacing the form (no page nav needed)
+- [x] Server error surfaces as a readable message, not a silent failure
+- [x] "Back to listings" preserving prior filters
 
 **Verify:** submit → row lands in `enquiries` (check via psql) · submit with bad email → inline error, no request wasted · 375px clean · both themes clean
 
