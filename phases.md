@@ -84,18 +84,18 @@ role-based access explicitly. Both cost one column each.
 **Goal:** the backend works and is provable with curl, before any UI exists.
 **Est: 1.5 hrs**
 
-- [ ] `lib/validation.ts` — Zod schemas: `propertyFilters`, `enquiryInput`, `adminLogin`
-- [ ] `lib/services/` — business logic layer. Route handlers stay thin: validate → authorize → delegate → respond. **No SQL in a route handler, ever** (`CLAUDE.md` §2a)
-- [ ] `lib/db/queries.ts` — all SQL lives here, all parameterized, snake_case → camelCase mapped at this boundary:
+- [x] `lib/validation.ts` — Zod schemas: `propertyFilters`, `enquiryInput`, `adminLogin`
+- [x] `lib/services/` — business logic layer. Route handlers stay thin: validate → authorize → delegate → respond. **No SQL in a route handler, ever** (`CLAUDE.md` §2a)
+- [x] `lib/db/queries.ts` — all SQL lives here, all parameterized, snake_case → camelCase mapped at this boundary:
   - `listProperties(filters)` — **server-side** filtering: city, university, min/max price, room type, text search (`ILIKE` on title/city/university), sort via allowlist map, `LIMIT`/`OFFSET`
   - `getPropertyBySlug(slug)`
   - `getFilterOptions()` — DISTINCT cities / universities / room types for the dropdowns
   - `createEnquiry(input)`
   - `listEnquiries()` · `updateEnquiryStatus(id, status)`
-- [ ] `GET /api/properties` — filters from query string, Zod-parsed, returns `{ items, total, page }`
-- [ ] `GET /api/properties/[slug]` — 404 when missing
-- [ ] `POST /api/enquiries` — Zod validation, honeypot field, in-memory IP throttle (5/min), verifies `property_id` exists
-- [ ] Consistent error shape `{ error: string }`; generic message to client, detail to `console.error`
+- [x] `GET /api/properties` — filters from query string, Zod-parsed, returns `{ items, total, page }`
+- [x] `GET /api/properties/[slug]` — 404 when missing
+- [x] `POST /api/enquiries` — Zod validation, honeypot field, in-memory IP throttle (5/min), verifies `property_id` exists
+- [x] Consistent error shape `{ error: string }`; generic message to client, detail to `console.error`
 
 **Critical:** filtering happens **in SQL**, never by fetching all rows and
 filtering in JS. This is the single clearest backend-competence signal in the build.
