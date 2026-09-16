@@ -177,42 +177,73 @@ and nothing depends on hover.
 
 ---
 
-## Phase 5.5 — Student Signup (Email OTP)
-**Goal:** passwordless student accounts — the strongest backend signal in the build.
-**Est: 3 hrs**
+## Phase 5.5 — Student Accounts (Email OTP + Saved Properties)
+**Goal:** passwordless student accounts that change what the product does.
+**Est: 3.5–4 hrs**
 
 Passwordless is the right call: no password storage, no reset flow, no "forgot
-password" surface, and it mirrors how real accommodation platforms onboard students.
+password" surface, and it mirrors how real accommodation platforms onboard.
 
-- [ ] Resend account + verified sender; `RESEND_API_KEY` in `.env.local` and `.env.example`
-- [ ] `lib/services/otp.ts` — the whole flow, every rule enforced server-side:
-  - [ ] `crypto.randomInt` for a 6-digit code — **never `Math.random`**
-  - [ ] Code stored **bcrypt-hashed**; plaintext exists only in the outbound email
-  - [ ] 10-minute expiry, enforced in the SQL `WHERE`, not just in JS
-  - [ ] Max 5 verify attempts, then the code is burned
-  - [ ] Single-use: consumed inside the same transaction that creates the session
-  - [ ] Send throttle: 3/hour per email **and** per IP
-  - [ ] Any older unconsumed codes for that email invalidated on a new request
-- [ ] `POST /api/auth/request-otp` — **identical response whether or not the email exists** (no enumeration). Never returns or logs the code in production
-- [ ] `POST /api/auth/verify-otp` — on success: upsert student, set `email_verified_at`, issue a `realm=student` JWT cookie (30-day expiry)
-- [ ] `POST /api/auth/logout`
-- [ ] `app/signup/page.tsx` — two-step shadcn `Form`: email → 6-digit code (shadcn `InputOTP`), resend-with-cooldown, clear error states
-- [ ] Header shows signed-in state + logout (shadcn `DropdownMenu`)
-- [ ] `app/my-enquiries/page.tsx` — student's own enquiries, **scoped by session `student_id` in the SQL**, never by a client-supplied id
-- [ ] Enquiry form prefills name/email and attaches `student_id` when signed in
-- [ ] Enquiry flow **stays public** — signing in is an enhancement, never a gate
+**Why saved properties:** without it, signing in buys a student nothing they
+can't already do. Students comparing accommodation shortlist 5–10 places over
+days — this is the reason accounts exist on a real platform, and it serves
+AcaDomo's own "discover, compare, book" pitch.
 
-**Security checklist — all must pass before this phase is done:**
-- [ ] Codes in the DB are hashes, verified by eye in psql
-- [ ] Expired code → rejected · 6th attempt → rejected · reused code → rejected
-- [ ] Unknown email → same response and timing as a known one
-- [ ] 4th send in an hour → 429
-- [ ] Student cookie on an admin route → 401
-- [ ] `/my-enquiries` never returns another student's rows (test with two accounts)
+### Schema
+- [x] `saved_properties` — student_id FK, property_id FK, created_at,
+      PRIMARY KEY (student_id, property_id) so a double-save is impossible
+- [x] Index on `(student_id, created_at DESC)`
 
-**Verify:** sign up with a real inbox end to end · check psql for hashed codes · both themes · 375px
+### OTP service — every rule enforced server-side
+- [x] `lib/services/otp.ts`:
+  - [x] `crypto.randomInt` for a 6-digit code — **never `Math.random`**
+  - [x] Code stored **bcrypt-hashed**; plaintext exists only in the outbound email
+  - [x] 10-minute expiry, enforced in the SQL `WHERE`, not just in JS
+  - [x] Max 5 verify attempts, then the code is burned
+  - [x] Single-use: consumed inside the same transaction that creates the session
+  - [x] Any older unconsumed codes for that email invalidated on a new request
+  - [x] Send throttle: 3/hour per email **and** per IP
+- [x] Email delivery via Resend. **With no `RESEND_API_KEY` set, the code is
+      logged to the server console instead** — the flow is fully testable
+      without a provider, and adding the key later changes no code
+- [x] Never return or log the code in production
 
-> **Commit Checkpoint 5.5** — `feat(auth): student signup with email OTP verification`
+### Routes
+- [x] `POST /api/auth/request-otp` — **identical response whether or not the
+      email exists** (no enumeration)
+- [x] `POST /api/auth/verify-otp` — upsert student, set `email_verified_at`,
+      issue `realm=student` JWT cookie (30-day)
+- [x] `POST /api/auth/logout`
+- [x] `POST /api/saved/[id]` / `DELETE /api/saved/[id]` — session-scoped
+- [x] Every route resolves `student_id` **from the session**, never from the body
+
+### UI
+- [x] `app/signup/page.tsx` — two-step form: email → 6-digit code
+      (shadcn `InputOTP`), resend-with-cooldown, clear error states
+- [x] Post-verify redirect returns the student **where they started**;
+      the `next` param is validated server-side as a relative path
+      (`/^\/(?!\/)/`) so it cannot become an open redirect
+- [x] Save/unsave heart control on property cards and detail page
+- [x] `app/saved/page.tsx` — the shortlist
+- [x] `app/account/page.tsx` — enquiry history, scoped by session `student_id`
+      **in the SQL**, never by a client-supplied id
+- [x] Header shows signed-in state + sign out
+- [x] Enquiry form prefills name/email and attaches `student_id` when signed in
+- [x] Enquiry flow **stays public** — signing in is an enhancement, never a gate
+
+### Security checklist — all must pass before this phase is done
+- [x] Codes in the DB are hashes, verified by eye in psql
+- [x] Expired code rejected · 6th attempt rejected · reused code rejected
+- [x] Unknown email → same response and timing as a known one
+- [x] 4th send in an hour → 429
+- [x] Student cookie on an admin route → 401
+- [x] `/account` and `/saved` never return another student's rows (two accounts)
+- [x] `next=https://evil.com` does not redirect off-site
+
+**Verify:** full signup with the console-logged code · psql shows hashed codes ·
+save a property, sign out, sign back in, shortlist persists · both themes · 375px
+
+> **Commit Checkpoint 5.5** — `feat(auth): student accounts with email OTP and saved properties`
 
 ---
 

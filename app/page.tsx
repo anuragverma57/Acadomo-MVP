@@ -4,6 +4,7 @@ import { SearchX } from "lucide-react";
 import { FilterBar } from "@/components/filter-bar";
 import { PropertyCard, PropertyCardSkeleton } from "@/components/property-card";
 import { Button } from "@/components/ui/button";
+import { currentStudentWithSaved } from "@/lib/session";
 import { loadFilterOptions, searchProperties } from "@/lib/services/properties";
 import { propertyFiltersSchema } from "@/lib/validation";
 
@@ -40,9 +41,10 @@ async function PropertyResults({ searchParams }: { searchParams: SearchParams })
 
   // Server Components query the database directly — fetching our own API route
   // here would be a pointless network hop (CLAUDE.md §4).
-  const [page, options] = await Promise.all([
+  const [page, options, { student, savedIds }] = await Promise.all([
     searchProperties(filters),
     loadFilterOptions(),
+    currentStudentWithSaved(),
   ]);
 
   return (
@@ -58,6 +60,8 @@ async function PropertyResults({ searchParams }: { searchParams: SearchParams })
               key={property.id}
               property={property}
               priority={index < 3}
+              saved={savedIds.has(property.id)}
+              signedIn={Boolean(student)}
             />
           ))}
         </div>

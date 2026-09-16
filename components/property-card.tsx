@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { GraduationCap, MapPin } from "lucide-react";
 
+import { SaveButton } from "@/components/save-button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import type { Property } from "@/lib/db/queries";
@@ -10,9 +11,13 @@ import { formatPrice, roomTypeLabel } from "@/lib/format";
 export function PropertyCard({
   property,
   priority = false,
+  saved = false,
+  signedIn = false,
 }: {
   property: Property;
   priority?: boolean;
+  saved?: boolean;
+  signedIn?: boolean;
 }) {
   return (
     <Card className="group overflow-hidden p-0 transition-shadow focus-within:ring-2 focus-within:ring-ring/50 hover:shadow-md">
@@ -32,6 +37,13 @@ export function PropertyCard({
           >
             {roomTypeLabel(property.roomType)}
           </Badge>
+          <div className="absolute right-2 top-2">
+            <SaveButton
+              propertyId={property.id}
+              initialSaved={saved}
+              signedIn={signedIn}
+            />
+          </div>
         </div>
 
         <CardContent className="space-y-3 p-4">

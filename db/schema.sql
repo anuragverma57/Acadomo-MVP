@@ -98,3 +98,19 @@ CREATE TABLE enquiries (
 CREATE INDEX enquiries_status_created_idx ON enquiries (status, created_at DESC);
 CREATE INDEX enquiries_property_idx       ON enquiries (property_id);
 CREATE INDEX enquiries_student_idx        ON enquiries (student_id);
+
+
+-- ---------------------------------------------------------------------------
+-- saved_properties  (student shortlist)
+-- ---------------------------------------------------------------------------
+CREATE TABLE saved_properties (
+  student_id  bigint      NOT NULL REFERENCES students (id) ON DELETE CASCADE,
+  property_id bigint      NOT NULL REFERENCES properties (id) ON DELETE CASCADE,
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  -- Composite PK makes a duplicate save impossible at the database level,
+  -- so the API can be idempotent without a read-then-write race.
+  PRIMARY KEY (student_id, property_id)
+);
+
+CREATE INDEX saved_properties_student_idx
+  ON saved_properties (student_id, created_at DESC);

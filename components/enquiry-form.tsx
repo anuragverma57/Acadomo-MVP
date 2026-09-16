@@ -14,6 +14,9 @@ import { enquiryInputSchema, type EnquiryInput } from "@/lib/validation";
 type Props = {
   propertyId: number;
   propertyTitle: string;
+  /** Prefilled from the student session when signed in. */
+  defaultName?: string;
+  defaultEmail?: string;
 };
 
 function FieldError({ id, message }: { id: string; message?: string }) {
@@ -25,7 +28,12 @@ function FieldError({ id, message }: { id: string; message?: string }) {
   );
 }
 
-export function EnquiryForm({ propertyId, propertyTitle }: Props) {
+export function EnquiryForm({
+  propertyId,
+  propertyTitle,
+  defaultName = "",
+  defaultEmail = "",
+}: Props) {
   const [submitted, setSubmitted] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -40,8 +48,8 @@ export function EnquiryForm({ propertyId, propertyTitle }: Props) {
     resolver: standardSchemaResolver(enquiryInputSchema),
     defaultValues: {
       propertyId,
-      name: "",
-      email: "",
+      name: defaultName,
+      email: defaultEmail,
       phone: "",
       message: "",
       company: "",

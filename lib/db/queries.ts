@@ -1,4 +1,4 @@
-import { query, queryOne } from "@/lib/db/client";
+import { query, queryOne, transaction } from "@/lib/db/client";
 import type {
   EnquiryStatus,
   PropertyFilters,
@@ -406,4 +406,217 @@ export async function findAdminByEmail(email: string): Promise<AdminUser | null>
     passwordHash: row.password_hash,
     role: row.role,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Students & OTP
+// ---------------------------------------------------------------------------
+
+export type Student = {
+  id: number;
+  email: string;
+  name: string | null;
+  emailVerifiedAt: Date | null;
+};
+
+export type OtpRecord = {
+  id: number;
+  codeHash: string;
+  attempts: number;
+};
+
+/**
+ * Invalidates any live codes for this email, then stores the new one.
+ * Both statements run in one transaction so a request can never leave two
+ * usable codes behind.
+ */
+export async function createOtpCode(
+  email: string,
+  codeHash: string,
+  expiresAt: Date,
+): Promise<void> {
+  await transaction(async (client) => {
+    await client.query(
+      "UPDATE otp_codes SET consumed_at = now() WHERE email = $1 AND consumed_at IS NULL",
+      [email],
+    );
+    await client.query(
+      "INSERT INTO otp_codes (email, code_hash, expires_at) VALUES ($1, $2, $3)",
+      [email, codeHash, expiresAt],
+    );
+  });
+}
+
+/**
+ * Newest live code for an email. Expiry is enforced here in SQL rather than
+ * compared in JS, so a clock difference in the app cannot extend a code's life.
+ */
+export async function findLiveOtp(email: string): Promise<OtpRecord | null> {
+  const row = await queryOne<{ id: number; code_hash: string; attempts: number }>(
+    `SELECT id, code_hash, attempts
+       FROM otp_codes
+      WHERE email = $1
+        AND consumed_at IS NULL
+        AND expires_at > now()
+      ORDER BY created_at DESC
+      LIMIT 1`,
+    [email],
+  );
+
+  return row
+    ? { id: row.id, codeHash: row.code_hash, attempts: row.attempts }
+    : null;
+}
+
+export async function incrementOtpAttempts(id: number): Promise<number> {
+  const row = await queryOne<{ attempts: number }>(
+    "UPDATE otp_codes SET attempts = attempts + 1 WHERE id = $1 RETURNING attempts",
+    [id],
+  );
+  return row?.attempts ?? 0;
+}
+
+export async function burnOtp(id: number): Promise<void> {
+  await query("UPDATE otp_codes SET consumed_at = now() WHERE id = $1", [id]);
+}
+
+/**
+ * Consumes the code and upserts the student in one transaction, so a verified
+ * code can never be spent without producing a session-ready student row.
+ *
+ * The UPDATE is conditional on consumed_at IS NULL, so two concurrent requests
+ * with the same code cannot both succeed.
+ */
+export async function consumeOtpAndUpsertStudent(
+  otpId: number,
+  email: string,
+): Promise<Student | null> {
+  return transaction(async (client) => {
+    const consumed = await client.query(
+      "UPDATE otp_codes SET consumed_at = now() WHERE id = $1 AND consumed_at IS NULL RETURNING id",
+      [otpId],
+    );
+
+    if (consumed.rowCount === 0) {
+      return null; // Already used by a concurrent request.
+    }
+
+    const result = await client.query<{
+      id: number;
+      email: string;
+      name: string | null;
+      email_verified_at: Date | null;
+    }>(
+      `INSERT INTO students (email, email_verified_at)
+       VALUES ($1, now())
+       ON CONFLICT (email)
+       DO UPDATE SET email_verified_at = now()
+       RETURNING id, email, name, email_verified_at`,
+      [email],
+    );
+
+    const row = result.rows[0]!;
+    return {
+      id: row.id,
+      email: row.email,
+      name: row.name,
+      emailVerifiedAt: row.email_verified_at,
+    };
+  });
+}
+
+export async function updateStudentName(
+  studentId: number,
+  name: string,
+): Promise<void> {
+  await query("UPDATE students SET name = $2 WHERE id = $1", [studentId, name]);
+}
+
+export async function getStudentById(id: number): Promise<Student | null> {
+  const row = await queryOne<{
+    id: number;
+    email: string;
+    name: string | null;
+    email_verified_at: Date | null;
+  }>("SELECT id, email, name, email_verified_at FROM students WHERE id = $1", [id]);
+
+  return row
+    ? {
+        id: row.id,
+        email: row.email,
+        name: row.name,
+        emailVerifiedAt: row.email_verified_at,
+      }
+    : null;
+}
+
+// ---------------------------------------------------------------------------
+// Saved properties
+// ---------------------------------------------------------------------------
+
+/** Idempotent: the composite primary key absorbs a repeat save. */
+export async function saveProperty(
+  studentId: number,
+  propertyId: number,
+): Promise<void> {
+  await query(
+    `INSERT INTO saved_properties (student_id, property_id)
+     VALUES ($1, $2)
+     ON CONFLICT (student_id, property_id) DO NOTHING`,
+    [studentId, propertyId],
+  );
+}
+
+export async function unsaveProperty(
+  studentId: number,
+  propertyId: number,
+): Promise<void> {
+  await query(
+    "DELETE FROM saved_properties WHERE student_id = $1 AND property_id = $2",
+    [studentId, propertyId],
+  );
+}
+
+/** Scoped by student_id in SQL — never by a client-supplied identifier. */
+export async function listSavedProperties(
+  studentId: number,
+): Promise<Property[]> {
+  // Columns must be table-qualified: properties and saved_properties both
+  // have created_at, so the unqualified list is ambiguous across this join.
+  const rows = await query<PropertyRow>(
+    `SELECT p.id, p.title, p.slug, p.city, p.country, p.university,
+            p.price_per_week, p.currency, p.room_type, p.description,
+            p.amenities, p.image_url, p.created_at
+       FROM properties p
+       JOIN saved_properties s ON s.property_id = p.id
+      WHERE s.student_id = $1
+      ORDER BY s.created_at DESC`,
+    [studentId],
+  );
+  return rows.map(toProperty);
+}
+
+export async function listSavedPropertyIds(
+  studentId: number,
+): Promise<number[]> {
+  const rows = await query<{ property_id: number }>(
+    "SELECT property_id FROM saved_properties WHERE student_id = $1",
+    [studentId],
+  );
+  return rows.map((r) => r.property_id);
+}
+
+// ---------------------------------------------------------------------------
+// Student enquiries
+// ---------------------------------------------------------------------------
+
+/** Scoped by session student_id in SQL. */
+export async function listEnquiriesForStudent(
+  studentId: number,
+): Promise<Enquiry[]> {
+  const rows = await query<EnquiryRow>(
+    `${ENQUIRY_SELECT} WHERE e.student_id = $1 ORDER BY e.created_at DESC`,
+    [studentId],
+  );
+  return rows.map(toEnquiry);
 }

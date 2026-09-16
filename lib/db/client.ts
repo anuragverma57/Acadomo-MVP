@@ -1,4 +1,4 @@
-import { Pool, types } from "pg";
+import { Pool, types, type PoolClient } from "pg";
 
 // pg returns bigint (int8) as a string to avoid precision loss. Our ids are
 // well inside Number.MAX_SAFE_INTEGER, and a string id would leak into every
@@ -60,4 +60,25 @@ export async function queryOne<T extends Record<string, unknown>>(
 ): Promise<T | null> {
   const rows = await query<T>(text, params);
   return rows[0] ?? null;
+}
+
+/**
+ * Runs `fn` inside a transaction on a single dedicated connection.
+ * Commits on success, rolls back on any throw, and always releases.
+ */
+export async function transaction<T>(
+  fn: (client: PoolClient) => Promise<T>,
+): Promise<T> {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const result = await fn(client);
+    await client.query("COMMIT");
+    return result;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
 }

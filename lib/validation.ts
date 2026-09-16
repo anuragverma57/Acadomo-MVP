@@ -93,6 +93,36 @@ export const adminLoginSchema = z.object({
 
 export type AdminLogin = z.infer<typeof adminLoginSchema>;
 
+export const requestOtpSchema = z.object({
+  email: z.email("Enter a valid email address").trim().toLowerCase().max(255),
+});
+
+export const verifyOtpSchema = z.object({
+  email: z.email("Enter a valid email address").trim().toLowerCase().max(255),
+  code: z
+    .string()
+    .trim()
+    .regex(/^\d{6}$/, "Enter the 6-digit code"),
+});
+
+export type RequestOtp = z.infer<typeof requestOtpSchema>;
+export type VerifyOtp = z.infer<typeof verifyOtpSchema>;
+
+/**
+ * Validates a post-login redirect target.
+ *
+ * Only same-site absolute paths are allowed. Rejecting "//evil.com" matters as
+ * much as rejecting "https://evil.com" — browsers treat a protocol-relative URL
+ * as off-site, so a naive "starts with /" check is an open redirect.
+ */
+export function safeRedirect(value: unknown, fallback = "/"): string {
+  if (typeof value !== "string") return fallback;
+  if (!value.startsWith("/")) return fallback;
+  if (value.startsWith("//")) return fallback;
+  if (value.includes("\\")) return fallback;
+  return value;
+}
+
 export const enquiryStatusSchema = z.object({
   status: z.enum(ENQUIRY_STATUSES),
 });

@@ -7,7 +7,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { NAV_ITEMS } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 
-export function SiteHeader() {
+export function SiteHeader({ studentEmail }: { studentEmail?: string | null }) {
   const pathname = usePathname();
 
   return (
@@ -40,7 +40,22 @@ export function SiteHeader() {
           })}
         </nav>
 
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-1">
+          {studentEmail ? (
+            <Link
+              href="/account"
+              className="hidden max-w-[16ch] truncate rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground md:block"
+            >
+              {studentEmail}
+            </Link>
+          ) : (
+            <Link
+              href="/signup"
+              className="hidden rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground md:block"
+            >
+              Sign in
+            </Link>
+          )}
           <ThemeToggle />
         </div>
       </div>

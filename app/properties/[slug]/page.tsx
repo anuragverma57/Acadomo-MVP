@@ -5,8 +5,10 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, Check, GraduationCap, MapPin } from "lucide-react";
 
 import { EnquiryForm } from "@/components/enquiry-form";
+import { SaveButton } from "@/components/save-button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { currentStudentWithSaved } from "@/lib/session";
 import { findPropertyBySlug } from "@/lib/services/properties";
 import { formatPrice, roomTypeLabel } from "@/lib/format";
 
@@ -41,7 +43,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function PropertyDetailPage({ params }: Props) {
   const { slug } = await params;
-  const property = await findPropertyBySlug(slug);
+  const [property, { student, savedIds }] = await Promise.all([
+    findPropertyBySlug(slug),
+    currentStudentWithSaved(),
+  ]);
 
   if (!property) {
     notFound();
@@ -129,10 +134,18 @@ export default async function PropertyDetailPage({ params }: Props) {
             <p className="mt-1 text-sm text-muted-foreground">
               Send a message and the team will get back to you by email.
             </p>
-            <div className="mt-5">
+            <div className="mt-5 space-y-4">
+              <SaveButton
+                propertyId={property.id}
+                initialSaved={savedIds.has(property.id)}
+                signedIn={Boolean(student)}
+                variant="full"
+              />
               <EnquiryForm
                 propertyId={property.id}
                 propertyTitle={property.title}
+                defaultName={student?.name ?? ""}
+                defaultEmail={student?.email ?? ""}
               />
             </div>
           </div>

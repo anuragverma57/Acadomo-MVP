@@ -5,6 +5,7 @@ import { BottomNav } from "@/components/bottom-nav";
 import { SiteHeader } from "@/components/site-header";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
+import { currentStudent } from "@/lib/session";
 
 import "./globals.css";
 
@@ -44,7 +45,9 @@ export const viewport: Viewport = {
   ],
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  const student = await currentStudent();
+
   return (
     <html
       lang="en"
@@ -58,7 +61,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           enableSystem
           disableTransitionOnChange
         >
-          <SiteHeader />
+          <SiteHeader studentEmail={student?.email} />
           <main className="flex-1">{children}</main>
           <BottomNav />
           <Toaster />

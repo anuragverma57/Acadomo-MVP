@@ -6,6 +6,7 @@ import {
   tooManyRequests,
   validationFailed,
 } from "@/lib/api";
+import { getStudentSession } from "@/lib/auth";
 import { submitEnquiry } from "@/lib/services/enquiries";
 import { rateLimit } from "@/lib/services/rate-limit";
 import { enquiryInputSchema } from "@/lib/validation";
@@ -36,7 +37,12 @@ export async function POST(request: Request) {
       return validationFailed(parsed.error);
     }
 
-    const result = await submitEnquiry(parsed.data);
+    // Attribution comes from the session cookie, never the request body — a
+    // client must not be able to file an enquiry under someone else's account.
+    const session = await getStudentSession();
+    const result = await submitEnquiry(parsed.data, {
+      studentId: session?.studentId ?? null,
+    });
 
     if (!result.ok) {
       if (result.reason === "unknown_property") {
