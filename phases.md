@@ -118,15 +118,15 @@ Confirm: bad email → 400 · missing field → 400 · 6th rapid POST → 429
 **Goal:** the page a reviewer sees first. This is the money shot.
 **Est: 2 hrs**
 
-- [ ] Add shadcn components as needed: `card`, `badge`, `select`, `slider`, `skeleton`, `sheet`, `input`
-- [ ] `components/property-card.tsx` — composed from shadcn `Card` + `Badge`: image, title, city + university, price/week, room-type badge
-- [ ] `components/filter-bar.tsx` — shadcn `Select` + `Slider`, in a `Sheet` on mobile; `"use client"`
-- [ ] Filters drive **URL search params** → Server Component re-queries the DB.
+- [x] Add shadcn components as needed: `card`, `badge`, `select`, `slider`, `skeleton`, `sheet`, `input`
+- [x] `components/property-card.tsx` — composed from shadcn `Card` + `Badge`: image, title, city + university, price/week, room-type badge
+- [x] `components/filter-bar.tsx` — shadcn `Select` + `Slider`, in a `Sheet` on mobile; `"use client"`
+- [x] Filters drive **URL search params** → Server Component re-queries the DB.
       Shareable URLs, back button works, no client-side state library.
-- [ ] `app/page.tsx` — hero + filter bar + responsive grid (1 / 2 / 3 cols)
-- [ ] `loading.tsx` with skeleton cards
-- [ ] Designed empty state: "No properties match these filters" + clear-filters action
-- [ ] Result count: "12 properties in London"
+- [x] `app/page.tsx` — hero + filter bar + responsive grid (1 / 2 / 3 cols)
+- [x] `loading.tsx` with skeleton cards
+- [x] Designed empty state: "No properties match these filters" + clear-filters action
+- [x] Result count: "12 properties in London"
 
 **Mobile:** verified at 375px — filters collapse into a `Sheet`, cards go single
 column, no horizontal scroll, content clears the bottom nav (`pb-20 md:pb-0`),
