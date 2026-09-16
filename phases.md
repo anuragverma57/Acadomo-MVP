@@ -56,8 +56,8 @@ content into the existing shell.
 **Goal:** real Postgres with realistic data, queryable from Node.
 **Est: 1 hr**
 
-- [ ] Local DB created: `createdb acadomo_dev`
-- [ ] `db/schema.sql`:
+- [x] Local DB created: `createdb acadomo_dev`
+- [x] `db/schema.sql`:
   - `properties` — id, title, slug, city, country, **university**, price_per_week (int, minor units), currency, room_type, description, amenities (text[]), image_url, created_at
   - `enquiries` — id, property_id FK → properties ON DELETE CASCADE, name, email, phone, message, status (`new` | `contacted`, CHECK constraint), created_at
   - `admin_users` — id, email UNIQUE, password_hash, **role** (default `admin`), created_at
@@ -65,9 +65,9 @@ content into the existing shell.
   - `otp_codes` — id, email, code_hash, expires_at, attempts (default 0), consumed_at, created_at
   - `enquiries` gains a nullable `student_id` FK → students (set when submitted by a signed-in student)
   - Indexes on `properties(city)`, `properties(university)`, `properties(price_per_week)`, `enquiries(status, created_at DESC)`, `otp_codes(email, expires_at)`
-- [ ] `lib/db/client.ts` — `pg` Pool, singleton across hot reloads, SSL on in prod
-- [ ] `db/seed.ts` — 15 properties across 5 cities / 6 universities, varied price + room type, Unsplash image URLs; seeds admin user with bcrypt-hashed password from env
-- [ ] npm scripts: `db:reset`, `db:seed`
+- [x] `lib/db/client.ts` — `pg` Pool, singleton across hot reloads, SSL on in prod
+- [x] `db/seed.ts` — 15 properties across 5 cities / 6 universities, varied price + room type, Unsplash image URLs; seeds admin user with bcrypt-hashed password from env
+- [x] npm scripts: `db:reset`, `db:seed`
 
 **Why `university` and `role`:** the JD names university-based discovery (#4) and
 role-based access explicitly. Both cost one column each.
