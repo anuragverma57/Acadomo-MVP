@@ -2,6 +2,8 @@
  * Seeds the database with realistic demo data.
  * Run with: npm run db:seed   (after npm run db:reset)
  */
+import { createHash } from "node:crypto";
+
 import bcrypt from "bcryptjs";
 
 import { getPool, query } from "../lib/db/client";
@@ -301,7 +303,7 @@ async function seed() {
 
   // Truncate rather than drop: keeps the schema, resets identity counters, and
   // CASCADE clears dependent enquiries in one statement.
-  await query("TRUNCATE properties, enquiries, students, otp_codes, admin_users RESTART IDENTITY CASCADE");
+  await query("TRUNCATE properties, enquiries, students, otp_codes, admin_users, property_views RESTART IDENTITY CASCADE");
 
   const allProperties = [...PROPERTIES, ...generatedProperties()];
 
@@ -377,6 +379,82 @@ async function seed() {
     }
   }
 
+  // Backdated views, correlated with the enquiries above.
+  //
+  // Views are generated per property per day from the same daily shape, then
+  // scaled up: a listing that received an enquiry that day gets proportionally
+  // more views. Random views uncorrelated with enquiries would produce a
+  // conversion rate that is pure noise, which defeats the metric.
+  //
+  // Batched into multi-row INSERTs — ~9k individual round trips to a pooler in
+  // another region takes minutes; this takes seconds.
+  const perDayEnquiries = await query<{ day: number; property_id: number; n: number }>(
+    `SELECT (date_part('day', now() - created_at))::int AS day,
+            property_id,
+            count(*)::int AS n
+       FROM enquiries
+      GROUP BY 1, 2`,
+  );
+
+  const enquiriesByKey = new Map<string, number>();
+  for (const row of perDayEnquiries) {
+    enquiriesByKey.set(`${row.day}:${row.property_id}`, row.n);
+  }
+
+  // Deterministic pseudo-random, so a reseed produces the same chart.
+  let seedState = 42;
+  const rand = () => {
+    seedState = (seedState * 1664525 + 1013904223) % 4294967296;
+    return seedState / 4294967296;
+  };
+
+  const viewRows: string[] = [];
+  const viewParams: unknown[] = [];
+  let viewCount = 0;
+
+  const flushViews = async () => {
+    if (viewRows.length === 0) return;
+    await query(
+      `INSERT INTO property_views (property_id, visitor_hash, viewed_at) VALUES ${viewRows.join(", ")}`,
+      viewParams,
+    );
+    viewRows.length = 0;
+    viewParams.length = 0;
+  };
+
+  for (let day = 89; day >= 0; day -= 1) {
+    for (const property of active) {
+      const enquiriesToday = enquiriesByKey.get(`${day}:${property.id}`) ?? 0;
+
+      // Baseline browsing traffic, trending up like the enquiry curve, plus
+      // roughly 12-25 views for each enquiry that property received that day.
+      const base = 1 + Math.floor((89 - day) / 30);
+      const noise = rand() < 0.45 ? 1 : 0;
+      const fromEnquiries = enquiriesToday * (12 + Math.floor(rand() * 14));
+      const count = base + noise + fromEnquiries;
+
+      for (let n = 0; n < count; n += 1) {
+        const i = viewParams.length;
+        viewRows.push(
+          `($${i + 1}, $${i + 2}, now() - ($${i + 3} || ' days')::interval - ($${i + 4} || ' hours')::interval)`,
+        );
+        viewParams.push(
+          property.id,
+          // A plausible spread of distinct visitors; hashed exactly as the
+          // application would store them.
+          createHash("sha256").update(`seed:${day}:${property.id}:${n}`).digest("hex"),
+          day,
+          Math.floor(rand() * 24),
+        );
+        viewCount += 1;
+
+        // Keep each statement well under Postgres' 65535-parameter ceiling.
+        if (viewParams.length >= 4000) await flushViews();
+      }
+    }
+  }
+  await flushViews();
+
   const passwordHash = await bcrypt.hash(adminPassword, 12);
   await query(
     `INSERT INTO admin_users (email, password_hash, role) VALUES ($1, $2, $3)`,
@@ -402,6 +480,7 @@ async function seed() {
 
   console.log(`✓ ${propertyCount} properties across ${cityCount} cities and ${uniCount} universities (${hiddenCount} hidden)`);
   console.log(`✓ ${enquiryCount} enquiries backdated across 90 days`);
+  console.log(`✓ ${viewCount} property views backdated and correlated with enquiries`);
   console.log(`✓ admin user: ${adminEmail} (role: super_admin)`);
 }
 

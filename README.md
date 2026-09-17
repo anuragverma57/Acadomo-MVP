@@ -44,11 +44,13 @@ It installs to a phone home screen as a PWA and works offline for browsing.
 **As a student:** open the [live demo](https://acadomo-mvp.vercel.app/), filter
 by city or university, open a property, send an enquiry.
 
-**As staff:** sign in with the same form. Staff get their own shell — Enquiries
-and Properties, no student tabs. Both lists have search, filters, sorting and
-pagination; properties can be created, edited, and shown/hidden. Enter a staff email and it asks for a
-password instead of a code, then lands on the admin dashboard where enquiries can
-be marked contacted. Credentials available on request.
+**As staff:** sign in with the same form. Staff get their own shell — Enquiries,
+Properties and Analytics, no student tabs. Both lists have search, filters,
+sorting and pagination; properties can be created, edited, and shown/hidden.
+Enter a staff email and it asks for a password instead of a code, then lands on
+the admin dashboard where enquiries can be marked contacted. The analytics tab
+charts views and enquiries over 7/30/90 days, with conversion rate, top
+listings, and breakdowns by city and university. Credentials available on request.
 
 **One sign-in form handles both.** You enter an email; the server decides whether
 that address needs a password or a one-time code. Student addresses reveal
@@ -72,7 +74,8 @@ Share → Add to Home Screen. It launches standalone, with no browser chrome.
 | Validation | Zod | One schema shared by client and server |
 | Auth | `jose` JWT in httpOnly cookies | Two separate realms: admin and student |
 | Email | Resend | One-time sign-in codes |
-| Tests | Vitest | 129 tests over the security-relevant logic |
+| Charts | `recharts` | Themed from CSS tokens, so a theme switch needs no JS |
+| Tests | Vitest | 161 tests over the security-relevant logic |
 | Hosting | Vercel | Git push deploys; preview URL per branch |
 
 ---
@@ -149,10 +152,10 @@ hash when the account does not exist) so response time cannot distinguish them.
 `localStorage`. Admin and student tokens carry a `realm` claim and use different
 cookie names, so a valid student token cannot satisfy an admin check.
 
-**Authorization** — middleware redirects unauthenticated users, but it is UX
-only. Every admin route handler and page re-verifies the session itself. A
-forged, expired, or wrong-realm token is rejected at that layer even though the
-cookie exists.
+**Authorization** — `proxy.ts` redirects unauthenticated users, but it is UX
+only: it checks that a cookie exists, not that it is valid. Every admin route
+handler and page re-verifies the session itself, so a forged, expired, or
+wrong-realm token is rejected at that layer even though the cookie is present.
 
 **One-time codes are credentials** — generated with `crypto.randomInt`, stored
 bcrypt-hashed, expiring in 10 minutes (enforced in SQL, not JS), capped at 5
@@ -171,6 +174,24 @@ the filter is applied **in the query layer**: the listing, detail page, detail
 API, filter dropdowns, saved shortlist and the enquiry endpoint all reject
 hidden rows. The UI omitting a row is never the boundary. Soft-disable also
 keeps enquiry history intact for analytics.
+
+**Analytics** — every number is computed in Postgres, not in JavaScript.
+Pulling ~18k view rows into Node to produce twelve figures would be the wrong
+shape; instead the queries use CTEs, `date_trunc`, `generate_series` to
+zero-fill days with no activity, and `FILTER` clauses to derive the current and
+previous window from a single parameter so the two cannot drift apart. Views
+and enquiries are aggregated in separate subqueries before joining — joining
+both fact tables at once multiplies the counts, which is the classic fan-out
+trap. Sorting and grouping columns cannot be parameterized in SQL, so the one
+place an identifier reaches the query text goes through an allowlist.
+
+**View tracking without personal data** — a view stores a salted SHA-256 of
+(IP + user agent), never the address itself. The salt matters: the IPv4 space
+is small enough to brute-force a bare hash in minutes, which would make an
+unsalted digest equivalent to storing the IP. Deduplication is a single
+`INSERT … WHERE NOT EXISTS`, so a check-then-write pair cannot interleave, and
+the write is fire-and-forget — a failed analytics insert must never break the
+page a student is reading.
 
 **Service worker** — never caches `/api/auth/*`, `/api/admin/*`, `/api/saved/*`,
 any authenticated page, or any non-GET request. A cached authenticated response
@@ -219,7 +240,7 @@ enabling it anywhere real.
 | Script | |
 | --- | --- |
 | `npm run dev` | Dev server |
-| `npm test` | 129 tests |
+| `npm test` | 161 tests |
 | `npm run db:check` | Verify DB connection and TLS |
 | `npm run db:reset` / `db:seed` | Rebuild and populate |
 | `npm run lint` / `typecheck` | Static checks |
@@ -228,7 +249,7 @@ enabling it anywhere real.
 
 ## Tests
 
-129 tests, deliberately narrow. They cover the logic where a bug is a
+161 tests, deliberately narrow. They cover the logic where a bug is a
 *vulnerability* rather than a visual glitch:
 
 - **OTP** — expiry, the 5-attempt cap, single-use, and that a correct code is
@@ -238,6 +259,8 @@ enabling it anywhere real.
 - **Validation** — every schema, plus the redirect guard that blocks
   `//evil.com` and `https://evil.com`
 - **Service worker** — the full list of routes that must never be cached
+- **Analytics** — the one place a column name reaches SQL text is resolved
+  through an allowlist, and the visitor hash is never reversible to an IP
 - **Demo mode** — that leaking the code stays off unless explicitly enabled and
   is disabled automatically once real email is configured
 - **Property visibility** — that the active filter survives alongside other
@@ -269,18 +292,15 @@ Cut scope is a decision, not an omission. Each of these was considered:
 
 ## What I would build next
 
-1. **Analytics dashboard** — views, enquiry conversion, breakdowns by city and
-   university. Aggregated in SQL (`GROUP BY`, `date_trunc`, window functions),
-   which makes it a query-design exercise rather than a charting one.
-2. **Multi-admin with policy-based access** — a central
+1. **Multi-admin with policy-based access** — a central
    `can(user, action, resource)` function instead of role strings scattered
    through handlers, plus an audit log.
-3. **Property-owner workflow** — owners submit listings, admins approve, only
+2. **Property-owner workflow** — owners submit listings, admins approve, only
    approved listings reach students, enforced in the query layer.
-4. **Push notifications and offline enquiry queue** — IndexedDB plus Background
+3. **Push notifications and offline enquiry queue** — IndexedDB plus Background
    Sync, with an idempotency key so a flushed queue cannot double-submit.
-5. **Playwright** for the browser flows the unit tests do not reach.
-6. **Shared-store rate limiting** — the current limiter is in-memory, which is
+4. **Playwright** for the browser flows the unit tests do not reach.
+5. **Shared-store rate limiting** — the current limiter is in-memory, which is
    correct for one instance and wrong at scale. It is isolated to one file.
 
 ---

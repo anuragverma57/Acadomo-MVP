@@ -48,8 +48,18 @@ CREATE TABLE students (
   id                bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   email             citext      NOT NULL UNIQUE,
   name              text,
+  -- Optional profile. Every column is nullable by design: identity is the
+  -- verified email, so a student can use the whole product without telling us
+  -- anything else. Gender is free text within an allowlist that includes
+  -- "prefer not to say" rather than a two-value enum.
+  phone             text,
+  gender            text        CHECK (gender IN ('female', 'male', 'non_binary', 'prefer_not_to_say')),
+  university        text,
+  course            text,
+  year_of_study     smallint    CHECK (year_of_study BETWEEN 1 AND 8),
   email_verified_at timestamptz,
-  created_at        timestamptz NOT NULL DEFAULT now()
+  created_at        timestamptz NOT NULL DEFAULT now(),
+  updated_at        timestamptz NOT NULL DEFAULT now()
 );
 
 
@@ -120,3 +130,27 @@ CREATE TABLE saved_properties (
 
 CREATE INDEX saved_properties_student_idx
   ON saved_properties (student_id, created_at DESC);
+
+
+-- ---------------------------------------------------------------------------
+-- property_views  (Phase 9 — analytics)
+-- ---------------------------------------------------------------------------
+-- One row per property detail view. Deliberately NOT a counter column on
+-- properties: a counter can answer "how many", but analytics needs "when",
+-- which requires the individual events.
+CREATE TABLE property_views (
+  id           bigint      GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  property_id  bigint      NOT NULL REFERENCES properties (id) ON DELETE CASCADE,
+  -- Salted SHA-256 of (ip + user agent). We need to distinguish visitors well
+  -- enough to deduplicate refreshes, but storing a raw IP would make this table
+  -- personal data under GDPR for no analytical gain. The hash is one-way and
+  -- the salt is a server secret, so it cannot be reversed or rainbow-tabled.
+  visitor_hash char(64)    NOT NULL,
+  viewed_at    timestamptz NOT NULL DEFAULT now()
+);
+
+-- Serves the time-series aggregate: range scan on viewed_at, grouped by property.
+CREATE INDEX property_views_viewed_at_idx ON property_views (viewed_at DESC);
+CREATE INDEX property_views_property_idx  ON property_views (property_id, viewed_at DESC);
+-- Deduplication looks up (property, visitor) pairs within a recent window.
+CREATE INDEX property_views_dedupe_idx    ON property_views (property_id, visitor_hash, viewed_at DESC);

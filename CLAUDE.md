@@ -75,6 +75,7 @@ The user runs every git command themselves. No exceptions, no "helpfully" stagin
 | Auth      | JWT in httpOnly cookie (`jose`) — two realms: admin + student |
 | Email     | Resend (OTP delivery)                      |
 | PWA       | `@ducanh2912/next-pwa` (Workbox under the hood) |
+| Charts    | `recharts` — theme-aware via CSS tokens    |
 | Validation| Zod, shared client + server               |
 | Dev DB    | Local Postgres (`postgresql@18`, Homebrew)|
 | Prod DB   | Neon free tier                            |
@@ -314,11 +315,28 @@ pipeline. State the limited scope plainly in the README.
 - **`pg_stat_ssl` lies through a pooler.** It reports the pooler's own backend
   connection, not the client link, so it reads `ssl=false` on a TLSv1.3
   connection. Read `client.connection.stream.encrypted/authorized` instead.
+- **Route interception lives in `proxy.ts`, not `middleware.ts`.** Next 16
+  renamed the convention; the export is `export default function proxy`.
+- **Never read `window` in a `useState` initialiser.** The server has no
+  `window`, so the client renders something different and hydration breaks.
+  Start from the server's value and correct in an effect.
 - **No PWA plugin.** The service worker is hand-written at `public/sw.js`
   (next-pwa needs webpack; this app uses Turbopack). Bump `CACHE_VERSION` when
   caching rules change. Emergency off switch: `NEXT_PUBLIC_DISABLE_SW=1`.
 - **Never cache authenticated responses.** `shouldBypass()` in `sw.js` is the
   boundary, and `tests/service-worker.test.ts` guards it.
+- **SVG `stop-color` does not resolve `var(--token)`.** A gradient stop written
+  as `stopColor="var(--chart-2)"` silently falls back to transparent black in
+  Chrome and Safari — the fill vanishes with no error. Set it through CSS
+  instead (`className="[stop-color:var(--chart-2)]"`), where `var()` resolves.
+- **Charts are `recharts`, coloured from CSS custom properties.** A theme change
+  repaints them with no JS: no theme listener, no re-render, no flash. Chart
+  tokens `--chart-1…5` are defined in both theme blocks in `app/globals.css`.
+- **A headless screenshot with `captureBeyondViewport` can rasterize before an
+  SVG paints**, producing blank charts that are actually fine in the browser.
+  Verify a chart through the DOM (path `d` attributes, computed fills) before
+  believing a screenshot that shows it empty.
+
 - **shadcn style is `base-nova`, built on Base UI — not Radix.** Components take
   a `render` prop, not `asChild`. `DropdownMenuTrigger` renders its own button,
   so style it with `buttonVariants(...)` rather than nesting a `<Button>`.

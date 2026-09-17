@@ -1,4 +1,5 @@
 import {
+  BarChart3,
   Building2,
   Heart,
   Home,
@@ -26,5 +27,6 @@ export const NAV_ITEMS: readonly NavItem[] = [
 export const ADMIN_NAV_ITEMS: readonly NavItem[] = [
   { href: "/admin", label: "Enquiries", Icon: Inbox },
   { href: "/admin/properties", label: "Properties", Icon: Building2 },
+  { href: "/admin/analytics", label: "Analytics", Icon: BarChart3 },
   { href: "/", label: "Site", Icon: Home },
 ];

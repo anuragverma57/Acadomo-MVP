@@ -5,6 +5,7 @@ import {
   buildEnquiryWhere,
   buildPropertyWhere,
 } from "@/lib/db/queries";
+import { SORT_KEYS, propertyFiltersSchema } from "@/lib/validation";
 
 /**
  * These tests guard the one place user input meets SQL. The rule they enforce:
@@ -242,5 +243,25 @@ describe("buildAdminPropertyWhere", () => {
     expect(clause).not.toContain(payload);
     expect(clause).not.toMatch(/DROP|DELETE|UNION/i);
     expect(params).toEqual([payload, payload]);
+  });
+});
+
+describe("public sort keys", () => {
+  it("maps every allowlisted key to SQL, and nothing else", () => {
+    // ORDER BY cannot be parameterized, so this allowlist is the boundary.
+    for (const key of SORT_KEYS) {
+      expect(propertyFiltersSchema.safeParse({ sort: key }).success).toBe(true);
+    }
+    expect(
+      propertyFiltersSchema.safeParse({ sort: "price_per_week; DROP TABLE properties" })
+        .success,
+    ).toBe(false);
+  });
+
+  it("falls back to newest for an unknown sort rather than erroring", () => {
+    // A stale bookmark must not 500 the browse page.
+    const parsed = propertyFiltersSchema.safeParse({ sort: "bogus" });
+    expect(parsed.success).toBe(false);
+    expect(propertyFiltersSchema.parse({}).sort).toBe("newest");
   });
 });

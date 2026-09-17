@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  GENDERS,
   adminLoginSchema,
   enquiryInputSchema,
   propertyFiltersSchema,
   safeRedirect,
+  studentProfileSchema,
   verifyOtpSchema,
 } from "@/lib/validation";
 
@@ -198,4 +200,71 @@ describe("safeRedirect", () => {
       expect(safeRedirect(path)).toBe(path);
     },
   );
+});
+
+describe("studentProfileSchema", () => {
+  it("accepts a completely empty profile", () => {
+    // Every field is optional by design: identity is the verified email.
+    const result = studentProfileSchema.safeParse({});
+    expect(result.success).toBe(true);
+  });
+
+  it("normalises a cleared field to undefined so the column is erased", () => {
+    // "" must not be stored — blanking a field in the form has to clear it.
+    const result = studentProfileSchema.parse({
+      name: "  ",
+      phone: "",
+      gender: "",
+      university: "",
+      yearOfStudy: "",
+    });
+    expect(result.name).toBeUndefined();
+    expect(result.phone).toBeUndefined();
+    expect(result.gender).toBeUndefined();
+    expect(result.university).toBeUndefined();
+    expect(result.yearOfStudy).toBeUndefined();
+  });
+
+  it("trims a supplied value", () => {
+    expect(studentProfileSchema.parse({ name: "  Anurag  " }).name).toBe("Anurag");
+  });
+
+  it("rejects a gender outside the allowlist", () => {
+    expect(studentProfileSchema.safeParse({ gender: "other" }).success).toBe(false);
+    expect(
+      studentProfileSchema.safeParse({ gender: "'; DROP TABLE students--" }).success,
+    ).toBe(false);
+  });
+
+  it("accepts every allowed gender, including prefer-not-to-say", () => {
+    for (const gender of GENDERS) {
+      expect(studentProfileSchema.safeParse({ gender }).success).toBe(true);
+    }
+  });
+
+  it("bounds the year of study", () => {
+    expect(studentProfileSchema.safeParse({ yearOfStudy: 1 }).success).toBe(true);
+    expect(studentProfileSchema.safeParse({ yearOfStudy: 8 }).success).toBe(true);
+    expect(studentProfileSchema.safeParse({ yearOfStudy: 0 }).success).toBe(false);
+    expect(studentProfileSchema.safeParse({ yearOfStudy: 9 }).success).toBe(false);
+  });
+
+  it("coerces a year from the string a number input submits", () => {
+    expect(studentProfileSchema.parse({ yearOfStudy: "3" }).yearOfStudy).toBe(3);
+  });
+
+  it("rejects a malformed phone number", () => {
+    expect(studentProfileSchema.safeParse({ phone: "not a phone" }).success).toBe(false);
+    expect(studentProfileSchema.safeParse({ phone: "+44 7700 900123" }).success).toBe(true);
+  });
+
+  it("ignores an email in the body — identity is not editable here", () => {
+    // The schema strips unknown keys, so a body-supplied email can never reach
+    // the UPDATE and change a verified identity.
+    const result = studentProfileSchema.parse({
+      name: "Anurag",
+      email: "attacker@example.com",
+    } as Record<string, unknown>);
+    expect(result).not.toHaveProperty("email");
+  });
 });

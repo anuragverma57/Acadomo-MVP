@@ -5,12 +5,15 @@ import { ADMIN_COOKIE } from "@/lib/auth";
 /**
  * Redirects signed-out visitors away from /admin pages.
  *
+ * Next 16 renamed the `middleware` convention to `proxy`; the behaviour is
+ * unchanged.
+ *
  * This is UX only: it checks for a cookie's presence, not its validity, because
- * middleware runs on the Edge runtime where verifying a JWT adds latency to
+ * this runs on the Edge runtime where verifying a JWT would add latency to
  * every request. The real authorization check happens inside each admin route
  * handler and page (CLAUDE.md §3).
  */
-export function middleware(request: NextRequest) {
+export default function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (pathname === "/admin/login") {

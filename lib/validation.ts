@@ -9,7 +9,13 @@ import { z } from "zod";
 export const ROOM_TYPES = ["studio", "ensuite", "shared", "apartment"] as const;
 export type RoomType = (typeof ROOM_TYPES)[number];
 
-export const SORT_KEYS = ["newest", "price_asc", "price_desc"] as const;
+export const SORT_KEYS = [
+  "newest",
+  "oldest",
+  "price_asc",
+  "price_desc",
+  "title",
+] as const;
 export type SortKey = (typeof SORT_KEYS)[number];
 
 export const ENQUIRY_STATUSES = ["new", "contacted"] as const;
@@ -98,6 +104,17 @@ export const enquiryInputSchema = z.object({
 
 export type EnquiryInput = z.infer<typeof enquiryInputSchema>;
 
+/**
+ * The form's-eye view of the schema.
+ *
+ * `z.coerce.number()` accepts unknown and yields number, so a schema's input
+ * and output types differ. react-hook-form is generic over BOTH: the field
+ * values it holds while typing (input) and the values a resolver hands the
+ * submit handler (output). Naming the input type explicitly is what keeps the
+ * two in agreement.
+ */
+export type EnquiryFormValues = z.input<typeof enquiryInputSchema>;
+
 export const adminLoginSchema = z.object({
   email: emailSchema,
   password: z.string().min(1, "Enter your password").max(200),
@@ -155,6 +172,9 @@ export const propertyInputSchema = z.object({
 
 export type PropertyInputValues = z.infer<typeof propertyInputSchema>;
 
+/** Input-side counterpart — see EnquiryFormValues. */
+export type PropertyFormValues = z.input<typeof propertyInputSchema>;
+
 export const propertyActiveSchema = z.object({ isActive: z.boolean() });
 
 export const ENQUIRY_SORT_KEYS = ["newest", "oldest", "property"] as const;
@@ -197,6 +217,67 @@ export const adminPropertyFiltersSchema = z.object({
 });
 
 export type AdminPropertyFilters = z.infer<typeof adminPropertyFiltersSchema>;
+
+/**
+ * Analytics window. Unlike the enquiry list there is no "all" option: a time
+ * series needs a bounded window to bucket over, and an unbounded one would
+ * scan the whole table to draw a chart nobody can read.
+ */
+export const ANALYTICS_RANGES = ["7d", "30d", "90d"] as const;
+export type AnalyticsRange = (typeof ANALYTICS_RANGES)[number];
+
+export const analyticsFiltersSchema = z.object({
+  range: z.enum(ANALYTICS_RANGES).default("30d"),
+});
+
+export type AnalyticsFilters = z.infer<typeof analyticsFiltersSchema>;
+
+/**
+ * Optional student profile.
+ *
+ * Every field is optional: identity is the verified email, and a student can
+ * use the product without telling us anything else. An empty string from a
+ * cleared input is normalised to undefined so blanking a field clears the
+ * column rather than storing "".
+ */
+export const GENDERS = [
+  "female",
+  "male",
+  "non_binary",
+  "prefer_not_to_say",
+] as const;
+export type Gender = (typeof GENDERS)[number];
+
+const blankToUndefined = z
+  .string()
+  .trim()
+  .transform((value) => (value === "" ? undefined : value))
+  .optional();
+
+export const studentProfileSchema = z.object({
+  name: blankToUndefined.pipe(z.string().max(100).optional()),
+  phone: blankToUndefined.pipe(
+    z
+      .string()
+      .min(6, "Enter a valid phone number")
+      .max(20)
+      .regex(/^[+\d][\d\s()-]*$/, "Enter a valid phone number")
+      .optional(),
+  ),
+  gender: z
+    .union([z.enum(GENDERS), z.literal("")])
+    .transform((value) => (value === "" ? undefined : value))
+    .optional(),
+  university: blankToUndefined.pipe(z.string().max(120).optional()),
+  course: blankToUndefined.pipe(z.string().max(120).optional()),
+  yearOfStudy: z
+    .union([z.coerce.number().int().min(1).max(8), z.literal("")])
+    .transform((value) => (value === "" ? undefined : value))
+    .optional(),
+});
+
+export type StudentProfileInput = z.infer<typeof studentProfileSchema>;
+export type StudentProfileFormValues = z.input<typeof studentProfileSchema>;
 
 export const enquiryStatusSchema = z.object({
   status: z.enum(ENQUIRY_STATUSES),

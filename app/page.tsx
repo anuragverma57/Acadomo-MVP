@@ -6,6 +6,8 @@ import { ResultsGrid } from "@/components/results-grid";
 import { Hero } from "@/components/hero";
 import { PropertyCard, PropertyCardSkeleton } from "@/components/property-card";
 import { Button } from "@/components/ui/button";
+import { getAdminSession } from "@/lib/auth";
+import { getPropertyStats } from "@/lib/db/queries";
 import { currentStudentWithSaved } from "@/lib/session";
 import { loadFilterOptions, searchProperties } from "@/lib/services/properties";
 import { propertyFiltersSchema } from "@/lib/validation";
@@ -43,14 +45,23 @@ async function PropertyResults({ searchParams }: { searchParams: SearchParams })
 
   // Server Components query the database directly — fetching our own API route
   // here would be a pointless network hop (CLAUDE.md §4).
-  const [page, options, { student, savedIds }, catalogue] = await Promise.all([
-    searchProperties(filters),
-    loadFilterOptions(),
-    currentStudentWithSaved(),
-    // Unfiltered count, so the hero stat does not change as filters are applied.
-    searchProperties(propertyFiltersSchema.parse({ pageSize: "1" })),
-  ]);
+  const [page, options, { student, savedIds }, catalogue, adminSession] =
+    await Promise.all([
+      searchProperties(filters),
+      loadFilterOptions(),
+      currentStudentWithSaved(),
+      // Unfiltered count, so the hero stat does not change as filters are applied.
+      searchProperties(propertyFiltersSchema.parse({ pageSize: "1" })),
+      getAdminSession(),
+    ]);
   const totalCatalogue = catalogue.total;
+
+  // Staff browsing the public site get performance numbers instead of a save
+  // button. Fetched only for the rows on screen, and only when an admin is
+  // actually signed in — a student must never trigger this query.
+  const stats = adminSession
+    ? await getPropertyStats(page.items.map((property) => property.id))
+    : null;
 
   return (
     <>
@@ -74,6 +85,7 @@ async function PropertyResults({ searchParams }: { searchParams: SearchParams })
               priority={index < 3}
               saved={savedIds.has(property.id)}
               signedIn={Boolean(student)}
+              stats={stats?.get(property.id)}
             />
           ))}
         </ResultsGrid>

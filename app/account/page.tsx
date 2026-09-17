@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Inbox } from "lucide-react";
 
+import { ProfileCard } from "@/components/profile-card";
 import { StudentSignOut } from "@/components/student-sign-out";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -48,6 +49,11 @@ export default async function AccountPage() {
       </div>
 
       <section className="mt-10">
+        <h2 className="font-display text-lg font-semibold">Your details</h2>
+        <ProfileCard student={student} />
+      </section>
+
+      <section className="mt-12">
         <h2 className="font-display text-lg font-semibold">Your enquiries</h2>
 
         {enquiries.length === 0 ? (

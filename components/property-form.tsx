@@ -25,6 +25,7 @@ import { roomTypeLabel } from "@/lib/format";
 import {
   ROOM_TYPES,
   propertyInputSchema,
+  type PropertyFormValues,
   type PropertyInputValues,
 } from "@/lib/validation";
 
@@ -48,7 +49,7 @@ export function PropertyForm({ property }: { property?: Property }) {
     handleSubmit,
     setValue,
     formState: { errors, isSubmitting },
-  } = useForm<PropertyInputValues>({
+  } = useForm<PropertyFormValues, unknown, PropertyInputValues>({
     // Same schema the API validates with.
     resolver: standardSchemaResolver(propertyInputSchema),
     defaultValues: property

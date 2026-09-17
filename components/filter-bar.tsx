@@ -27,6 +27,17 @@ import { formatPrice, roomTypeLabel } from "@/lib/format";
 
 const ANY = "__any__";
 
+/** Sort lives with the other controls, as it does on the admin lists. It still
+ *  never counts toward the active-filter badge: it changes the order of
+ *  results, not which results there are. */
+const SORT_OPTIONS: { value: string; label: string }[] = [
+  { value: "newest", label: "Newest first" },
+  { value: "oldest", label: "Oldest first" },
+  { value: "price_asc", label: "Price: low to high" },
+  { value: "price_desc", label: "Price: high to low" },
+  { value: "title", label: "Name (A–Z)" },
+];
+
 function SelectFilter({
   label,
   value,
@@ -119,7 +130,29 @@ function FilterControls({
         onChange={(roomType) => setParams({ roomType })}
       />
 
-      <div className="space-y-3">
+      <div className="space-y-1.5">
+        <label className="text-xs font-medium text-muted-foreground">Sort</label>
+        <Select
+          value={params.sort ?? "newest"}
+          onValueChange={(next) => setParams({ sort: String(next) })}
+        >
+          <SelectTrigger className="w-full" aria-label="Sort properties">
+            <SelectValue>
+              {SORT_OPTIONS.find((o) => o.value === (params.sort ?? "newest"))
+                ?.label ?? "Newest first"}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {SORT_OPTIONS.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="space-y-3 md:col-span-2 lg:col-span-4">
         <div className="flex items-baseline justify-between">
           <label className="text-xs font-medium text-muted-foreground">
             Price per week

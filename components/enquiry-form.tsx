@@ -10,7 +10,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useOnline } from "@/hooks/use-online";
-import { enquiryInputSchema, type EnquiryInput } from "@/lib/validation";
+import {
+  enquiryInputSchema,
+  type EnquiryFormValues,
+  type EnquiryInput,
+  type EnquiryStatus,
+} from "@/lib/validation";
 
 type Props = {
   propertyId: number;
@@ -18,6 +23,9 @@ type Props = {
   /** Prefilled from the student session when signed in. */
   defaultName?: string;
   defaultEmail?: string;
+  defaultPhone?: string;
+  /** The signed-in student's most recent enquiry on THIS property, if any. */
+  previousEnquiry?: { createdAt: Date | string; status: EnquiryStatus } | null;
 };
 
 function FieldError({ id, message }: { id: string; message?: string }) {
@@ -29,13 +37,26 @@ function FieldError({ id, message }: { id: string; message?: string }) {
   );
 }
 
+function formatEnquiryDate(value: Date | string) {
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(new Date(value));
+}
+
 export function EnquiryForm({
   propertyId,
   propertyTitle,
   defaultName = "",
   defaultEmail = "",
+  defaultPhone = "",
+  previousEnquiry = null,
 }: Props) {
   const [submitted, setSubmitted] = useState(false);
+  // Collapsed by default when they have already enquired: showing a blank form
+  // implies we have no record of it, which reads as though the first was lost.
+  const [showFormAnyway, setShowFormAnyway] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const online = useOnline();
 
@@ -44,7 +65,7 @@ export function EnquiryForm({
     handleSubmit,
     setError,
     formState: { errors, isSubmitting },
-  } = useForm<EnquiryInput>({
+  } = useForm<EnquiryFormValues, unknown, EnquiryInput>({
     // The same schema the API route validates with — client-side is UX,
     // server-side is the security boundary (CLAUDE.md §3).
     resolver: standardSchemaResolver(enquiryInputSchema),
@@ -52,7 +73,7 @@ export function EnquiryForm({
       propertyId,
       name: defaultName,
       email: defaultEmail,
-      phone: "",
+      phone: defaultPhone,
       message: "",
       company: "",
     },
@@ -91,6 +112,46 @@ export function EnquiryForm({
         "We couldn't send your enquiry. Check your connection and try again.",
       );
     }
+  }
+
+  // Already enquired, and they have not asked to send another.
+  if (previousEnquiry && !submitted && !showFormAnyway) {
+    const contacted = previousEnquiry.status === "contacted";
+
+    return (
+      <div className="rounded-lg border border-border bg-muted/40 p-6">
+        <div className="flex items-start gap-3">
+          <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden />
+          <div className="min-w-0 space-y-1.5">
+            <h3 className="font-semibold">
+              You have already enquired about this property
+            </h3>
+            <p className="text-sm text-muted-foreground text-pretty">
+              We passed your details to the team on{" "}
+              <span className="font-medium text-foreground">
+                {formatEnquiryDate(previousEnquiry.createdAt)}
+              </span>
+              .{" "}
+              {contacted
+                ? "They have marked your enquiry as contacted, so you should have heard from them by email."
+                : "They will be in touch by email — there is no need to send another enquiry."}
+            </p>
+          </div>
+        </div>
+
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => setShowFormAnyway(true)}
+          className="mt-5 w-full"
+        >
+          Send another enquiry
+        </Button>
+        <p className="mt-2 text-center text-xs text-muted-foreground">
+          Useful if your plans or dates have changed.
+        </p>
+      </div>
+    );
   }
 
   if (submitted) {

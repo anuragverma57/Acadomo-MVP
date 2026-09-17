@@ -68,11 +68,14 @@
   --border: oklch(0.895 0.007 80);
   --input: oklch(0.895 0.007 80);
   --ring: oklch(0.50 0.098 184);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
+  /* Chart series: the teal primary, then hues stepping away from it. Chosen so
+     adjacent series differ in lightness as well as hue, and stay distinguishable
+     in greyscale and for the most common colour-vision deficiencies. */
+  --chart-1: oklch(0.50 0.098 184);
+  --chart-2: oklch(0.62 0.115 225);
+  --chart-3: oklch(0.70 0.125 90);
+  --chart-4: oklch(0.58 0.130 300);
+  --chart-5: oklch(0.66 0.140 35);
   --radius: 0.5rem;
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
@@ -103,11 +106,12 @@
   --border: oklch(1 0 0 / 11%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.74 0.115 184);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
+  /* Lifted for contrast against the dark ground — same hues, higher lightness. */
+  --chart-1: oklch(0.74 0.115 184);
+  --chart-2: oklch(0.72 0.125 225);
+  --chart-3: oklch(0.80 0.135 90);
+  --chart-4: oklch(0.70 0.140 300);
+  --chart-5: oklch(0.75 0.150 35);
   --sidebar: oklch(0.205 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
   --sidebar-primary: oklch(0.488 0.243 264.376);

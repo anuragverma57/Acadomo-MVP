@@ -478,6 +478,13 @@ had search or pagination, and every filter surface had a visible lag on change.
       a disabled `<a>` is still focusable and clickable
 - [x] `Button` infers `nativeButton={false}` when `render` substitutes a
       non-button element, silencing Base UI's semantics warning at every call site
+- [x] Hydration mismatch fixed: `useScrollDirection` read `window.scrollY` in a
+      lazy initialiser, so a restored scroll position gave the header a
+      different className on the client. Now starts from the server's value and
+      corrects after hydration
+- [x] `middleware.ts` renamed to `proxy.ts` (Next 16 convention); redirects and
+      cross-realm rejection verified identical before and after
+- [x] **Zero errors or warnings** in the dev log across all 17 routes
 
 ### Seed
 - [x] 59 properties across 10 cities and 22 universities, 6 hidden
@@ -491,17 +498,83 @@ dev log · `npm test` green
 
 ---
 
+## Phase 9.5 — Consistency Pass ✅
+**Goal:** fix the rough edges surfaced by using the app on a phone.
+
+- [x] **Bottom nav wrapped to two lines for admins** — `grid-cols-3` was
+      hardcoded while the admin bar has four tabs. Columns now follow the item
+      count; labels truncate rather than wrap
+- [x] **Admin sees insight, not a shortlist** — on the public Site tab a staff
+      account gets view and enquiry counts per card instead of the save heart.
+      Saving is a student action and means nothing on a staff account
+- [x] **"You have already enquired"** replaces a blank form for a signed-in
+      student who has enquired before, with the date and a status-aware line.
+      "Send another enquiry" reveals the form for a genuine follow-up. The
+      card heading follows that state
+- [x] **Sort on every list** — browse gained a sort control (newest, oldest,
+      price both ways, name A–Z). Sort is a presentation choice, so it never
+      counts toward the active-filter badge
+- [x] **Optional student profile** — name, phone, gender, university, course,
+      year of study. Every column nullable: identity is the verified email.
+      Phone prefills the enquiry form, which is the reason to fill it in
+- [x] 15 new tests (161 total)
+
+**Verify:** admin bottom bar on one line · admin sees counts, student sees
+hearts · already-enquired panel with correct date and status copy · all five
+sorts reorder results · `PATCH /api/account` 401 unauthenticated · body-supplied
+`email`/`id` ignored · invalid gender → 400 · clearing a field erases the column
+
+### Follow-up pass
+- [x] **Admin detail page shows metrics, not an enquiry form** — an admin
+      enquiring with themselves is not a real action, and it would pollute the
+      very numbers they are there to read. Views, enquiries, conversion and a
+      link through to full analytics
+- [x] **Sort moved inside the filter controls**, matching the admin lists.
+      Price slider spans the full row so five controls do not orphan one
+- [x] **Charts no longer clipped** — a negative left margin pulled the y-axis
+      outside the plot area and cut its labels; the last x-tick overhung the
+      right edge. Long university names are shortened so a label fits on one line
+- [x] **Profile is a summary, not a form** — labelled rows with an Edit button
+      that opens a bottom sheet. Empty state invites the first entry instead of
+      showing blank inputs
+
+> **Commit Checkpoint 9.5** — `feat: admin insights, enquiry state, sorting and student profiles`
+
+---
+
 ## v2 — after the MVP ships, before showcasing
 
 Planned, not cancelled. Build only once Phases 0–8 are deployed and green.
 
-### Phase 9 — Analytics Dashboard (~2.5 hrs)
-- [ ] `property_views` table (property_id, viewed_at, session hash — no raw IPs)
-- [ ] Admin overview: enquiries over time, top properties by views and by
-      enquiries, conversion rate (views → enquiries), breakdown by city/university
-- [ ] Charts via `recharts` (shadcn `Chart` wrapper), theme-aware
-- [ ] All aggregation in **SQL** — `GROUP BY`, `date_trunc`, window functions.
-      This is the point: it's a query-design showcase, not a charting exercise
+### Phase 9 — Analytics Dashboard ✅
+- [x] `property_views` table (property_id, viewed_at, salted SHA-256 visitor
+      hash — never a raw IP). Event rows, not a counter column: a counter can
+      answer "how many" but not "when"
+- [x] View recording on the property detail page, deduplicated per visitor in a
+      30-minute window by a single `INSERT … WHERE NOT EXISTS` (no read-then-write
+      race). Fire-and-forget and error-swallowing — analytics must never break
+      the page a student is reading
+- [x] Admin overview at `/admin/analytics`: views, enquiries, conversion rate,
+      live listings, each with % change vs the preceding window
+- [x] Top listings by views with per-property conversion; breakdowns by city
+      and university
+- [x] Range picker (7/30/90 days) reading through `useOptimistic` per §5
+- [x] Charts via `recharts`, theme-aware through CSS custom properties —
+      no theme listener, no flash of the wrong palette
+- [x] All aggregation in **SQL**: CTEs, `date_trunc`, `generate_series` for
+      zero-filled days, `FILTER` clauses, two windows from one parameter
+- [x] Seeded 17,914 views across 90 days, correlated with the existing
+      enquiries so the conversion rate is meaningful rather than noise
+- [x] 17 new tests (146 total) covering the allowlist, parameterization and
+      visitor-hash privacy
+
+**Verify:** unauthenticated → 307 · student token in the admin cookie slot →
+307 (realm asserted, not just the signature) · each range returns different
+totals · `range=1;DROP TABLE properties` falls back to the default and the
+table survives · charts render in both themes · 375px, no horizontal scroll ·
+`npm test` green · zero dev-log warnings
+
+> **Commit Checkpoint 9** — `feat(analytics): admin dashboard with SQL aggregation and view tracking`
 
 ### Phase 10 — Multi-Admin + Policy-Based Access Control (~2.5 hrs)
 - [ ] Multiple admin accounts; invite flow

@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { GraduationCap, MapPin } from "lucide-react";
+import { Eye, GraduationCap, Inbox, MapPin } from "lucide-react";
 
 import { SaveButton } from "@/components/save-button";
 import { Badge } from "@/components/ui/badge";
@@ -8,16 +8,45 @@ import { Card, CardContent } from "@/components/ui/card";
 import type { Property } from "@/lib/db/queries";
 import { formatPrice, roomTypeLabel } from "@/lib/format";
 
+export type PropertyStats = { views: number; enquiries: number };
+
+/** Same glass treatment as the room-type badge, so the card reads as one design. */
+function StatPill({
+  Icon,
+  value,
+  label,
+}: {
+  Icon: typeof Eye;
+  value: number;
+  label: string;
+}) {
+  return (
+    <span
+      className="flex items-center gap-1 rounded-md bg-background/90 px-2 py-1 text-xs font-medium tabular-nums backdrop-blur"
+      title={`${value.toLocaleString()} ${label}`}
+    >
+      <Icon className="size-3.5 text-muted-foreground" aria-hidden />
+      {value.toLocaleString()}
+      <span className="sr-only">{label}</span>
+    </span>
+  );
+}
+
 export function PropertyCard({
   property,
   priority = false,
   saved = false,
   signedIn = false,
+  stats,
 }: {
   property: Property;
   priority?: boolean;
   saved?: boolean;
   signedIn?: boolean;
+  /** Supplied for an admin viewing the public site: swaps the save affordance
+   *  for the numbers they actually need. Saving a listing is a student action
+   *  and means nothing on a staff account. */
+  stats?: PropertyStats;
 }) {
   return (
     <Card className="group overflow-hidden border-border p-0 shadow-none transition-all duration-200 focus-within:ring-2 focus-within:ring-ring/50 hover:-translate-y-0.5 hover:border-foreground/25">
@@ -37,13 +66,20 @@ export function PropertyCard({
           >
             {roomTypeLabel(property.roomType)}
           </Badge>
-          <div className="absolute right-2 top-2">
-            <SaveButton
-              propertyId={property.id}
-              initialSaved={saved}
-              signedIn={signedIn}
-            />
-          </div>
+          {stats ? (
+            <div className="absolute right-2 top-2 flex gap-1.5">
+              <StatPill Icon={Eye} value={stats.views} label="views" />
+              <StatPill Icon={Inbox} value={stats.enquiries} label="enquiries" />
+            </div>
+          ) : (
+            <div className="absolute right-2 top-2">
+              <SaveButton
+                propertyId={property.id}
+                initialSaved={saved}
+                signedIn={signedIn}
+              />
+            </div>
+          )}
         </div>
 
         <CardContent className="space-y-3 p-5">

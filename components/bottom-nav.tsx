@@ -20,7 +20,12 @@ export function BottomNav({ isAdmin = false }: { isAdmin?: boolean }) {
         "pb-[env(safe-area-inset-bottom,0px)] md:hidden",
       )}
     >
-      <ul className="grid grid-cols-3">
+      {/* Column count follows the item count — hardcoding 3 wrapped the admin
+          bar (4 tabs) onto a second line. */}
+      <ul
+        className="grid"
+        style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}
+      >
         {items.map(({ href, label, Icon }) => {
           const active =
             href === "/"
@@ -35,14 +40,14 @@ export function BottomNav({ isAdmin = false }: { isAdmin?: boolean }) {
                 href={href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "flex min-h-[56px] flex-col items-center justify-center gap-1 text-xs font-medium transition-colors",
+                  "flex min-h-[56px] flex-col items-center justify-center gap-1 px-1 text-center text-[11px] font-medium leading-tight transition-colors",
                   active
                     ? "text-primary"
                     : "text-muted-foreground hover:text-foreground",
                 )}
               >
-                <Icon className="size-5" aria-hidden />
-                {label}
+                <Icon className="size-5 shrink-0" aria-hidden />
+                <span className="w-full truncate">{label}</span>
               </Link>
             </li>
           );

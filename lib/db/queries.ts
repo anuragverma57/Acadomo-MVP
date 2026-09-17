@@ -2,7 +2,9 @@ import { query, queryOne, transaction } from "@/lib/db/client";
 import type {
   AdminPropertyFilters,
   AdminPropertySortKey,
+  AnalyticsRange,
   DateRange,
+  Gender,
   EnquiryFilters,
   EnquirySortKey,
   EnquiryStatus,
@@ -156,8 +158,10 @@ const PROPERTY_COLUMNS = `
  */
 const SORT_SQL: Record<SortKey, string> = {
   newest: "created_at DESC, id DESC",
+  oldest: "created_at ASC, id ASC",
   price_asc: "price_per_week ASC, id DESC",
   price_desc: "price_per_week DESC, id DESC",
+  title: "title ASC, id DESC",
 };
 
 /**
@@ -436,6 +440,11 @@ export type Student = {
   email: string;
   name: string | null;
   emailVerifiedAt: Date | null;
+  phone: string | null;
+  gender: Gender | null;
+  university: string | null;
+  course: string | null;
+  yearOfStudy: number | null;
 };
 
 export type OtpRecord = {
@@ -525,12 +534,18 @@ export async function consumeOtpAndUpsertStudent(
       email: string;
       name: string | null;
       email_verified_at: Date | null;
+      phone: string | null;
+      gender: Gender | null;
+      university: string | null;
+      course: string | null;
+      year_of_study: number | null;
     }>(
       `INSERT INTO students (email, email_verified_at)
        VALUES ($1, now())
        ON CONFLICT (email)
        DO UPDATE SET email_verified_at = now()
-       RETURNING id, email, name, email_verified_at`,
+       RETURNING id, email, name, email_verified_at,
+                 phone, gender, university, course, year_of_study`,
       [email],
     );
 
@@ -540,6 +555,11 @@ export async function consumeOtpAndUpsertStudent(
       email: row.email,
       name: row.name,
       emailVerifiedAt: row.email_verified_at,
+      phone: row.phone,
+      gender: row.gender,
+      university: row.university,
+      course: row.course,
+      yearOfStudy: row.year_of_study,
     };
   });
 }
@@ -557,7 +577,17 @@ export async function getStudentById(id: number): Promise<Student | null> {
     email: string;
     name: string | null;
     email_verified_at: Date | null;
-  }>("SELECT id, email, name, email_verified_at FROM students WHERE id = $1", [id]);
+    phone: string | null;
+    gender: Gender | null;
+    university: string | null;
+    course: string | null;
+    year_of_study: number | null;
+  }>(
+    `SELECT id, email, name, email_verified_at,
+            phone, gender, university, course, year_of_study
+       FROM students WHERE id = $1`,
+    [id],
+  );
 
   return row
     ? {
@@ -565,8 +595,52 @@ export async function getStudentById(id: number): Promise<Student | null> {
         email: row.email,
         name: row.name,
         emailVerifiedAt: row.email_verified_at,
+        phone: row.phone,
+        gender: row.gender,
+        university: row.university,
+        course: row.course,
+        yearOfStudy: row.year_of_study,
       }
     : null;
+}
+
+/**
+ * Updates the optional profile.
+ *
+ * Every field is written on each save, including undefined ones, so clearing a
+ * field in the form actually clears the column. A partial-update builder would
+ * make "blank means leave alone" indistinguishable from "blank means erase".
+ *
+ * The email is deliberately NOT updatable here — it is the verified identity,
+ * and changing it would need re-verification through the OTP flow.
+ */
+export async function updateStudentProfile(
+  studentId: number,
+  profile: {
+    name?: string;
+    phone?: string;
+    gender?: Gender;
+    university?: string;
+    course?: string;
+    yearOfStudy?: number;
+  },
+): Promise<void> {
+  await query(
+    `UPDATE students
+        SET name = $2, phone = $3, gender = $4,
+            university = $5, course = $6, year_of_study = $7,
+            updated_at = now()
+      WHERE id = $1`,
+    [
+      studentId,
+      profile.name ?? null,
+      profile.phone ?? null,
+      profile.gender ?? null,
+      profile.university ?? null,
+      profile.course ?? null,
+      profile.yearOfStudy ?? null,
+    ],
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -994,4 +1068,380 @@ export async function getAdminPropertyCities(): Promise<string[]> {
     "SELECT DISTINCT city FROM properties ORDER BY city",
   );
   return rows.map((row) => row.city);
+}
+
+// ---------------------------------------------------------------------------
+// Analytics (Phase 9)
+//
+// Every aggregation below runs in Postgres. Pulling rows into JS and reducing
+// them there would mean shipping ~100k rows over the wire to produce twelve
+// numbers — the database is the right place to do this work, and saying so is
+// the point of this phase.
+// ---------------------------------------------------------------------------
+
+/** Analytics windows map through an allowlist — never interpolated. */
+const ANALYTICS_RANGE_DAYS: Record<AnalyticsRange, number> = {
+  "7d": 7,
+  "30d": 30,
+  "90d": 90,
+};
+
+export type AnalyticsSummary = {
+  views: number;
+  enquiries: number;
+  /** Enquiries per 100 views, rounded to one decimal. */
+  conversionRate: number;
+  activeProperties: number;
+  /** Percent change against the immediately preceding window of equal length. */
+  viewsChange: number | null;
+  enquiriesChange: number | null;
+};
+
+export type TimeseriesPoint = {
+  day: string;
+  views: number;
+  enquiries: number;
+};
+
+export type TopProperty = {
+  id: number;
+  title: string;
+  slug: string;
+  city: string;
+  isActive: boolean;
+  views: number;
+  enquiries: number;
+  conversionRate: number;
+};
+
+export type Breakdown = {
+  label: string;
+  views: number;
+  enquiries: number;
+};
+
+/**
+ * Headline numbers for the current window, plus the percentage change against
+ * the preceding window of equal length.
+ *
+ * Both windows are computed in a single round trip: the CTEs derive their own
+ * bounds from one interval parameter, so "last 30 days" and "the 30 days
+ * before that" cannot drift out of step the way two separate queries would.
+ */
+export async function getAnalyticsSummary(
+  range: AnalyticsRange,
+): Promise<AnalyticsSummary> {
+  const days = ANALYTICS_RANGE_DAYS[range];
+
+  const row = await queryOne<{
+    views: number;
+    enquiries: number;
+    prev_views: number;
+    prev_enquiries: number;
+    active_properties: number;
+  }>(
+    `WITH bounds AS (
+       SELECT
+         now() - ($1::int   || ' days')::interval AS current_start,
+         now() - ($1::int * 2 || ' days')::interval AS previous_start
+     )
+     SELECT
+       count(*) FILTER (
+         WHERE v.viewed_at >= b.current_start
+       )::int AS views,
+       count(*) FILTER (
+         WHERE v.viewed_at >= b.previous_start AND v.viewed_at < b.current_start
+       )::int AS prev_views,
+       (SELECT count(*) FROM enquiries e, bounds bb
+          WHERE e.created_at >= bb.current_start)::int AS enquiries,
+       (SELECT count(*) FROM enquiries e, bounds bb
+          WHERE e.created_at >= bb.previous_start
+            AND e.created_at <  bb.current_start)::int AS prev_enquiries,
+       (SELECT count(*) FROM properties WHERE is_active)::int AS active_properties
+     FROM bounds b
+     LEFT JOIN property_views v ON v.viewed_at >= b.previous_start
+     GROUP BY b.current_start, b.previous_start`,
+    [days],
+  );
+
+  const views = row?.views ?? 0;
+  const enquiries = row?.enquiries ?? 0;
+
+  return {
+    views,
+    enquiries,
+    conversionRate: views === 0 ? 0 : Math.round((enquiries / views) * 1000) / 10,
+    activeProperties: row?.active_properties ?? 0,
+    viewsChange: percentChange(row?.prev_views ?? 0, views),
+    enquiriesChange: percentChange(row?.prev_enquiries ?? 0, enquiries),
+  };
+}
+
+/** Null when there is no baseline — "up 100% from zero" is not information. */
+function percentChange(previous: number, current: number): number | null {
+  if (previous === 0) return null;
+  return Math.round(((current - previous) / previous) * 1000) / 10;
+}
+
+/**
+ * Daily views and enquiries over the window.
+ *
+ * generate_series supplies every day in the range so that days with no
+ * activity come back as an explicit zero. Without it the chart would connect
+ * across the gap and imply activity that never happened.
+ */
+export async function getAnalyticsTimeseries(
+  range: AnalyticsRange,
+): Promise<TimeseriesPoint[]> {
+  const days = ANALYTICS_RANGE_DAYS[range];
+
+  const rows = await query<{ day: Date; views: number; enquiries: number }>(
+    `WITH calendar AS (
+       SELECT generate_series(
+         date_trunc('day', now() - ($1 || ' days')::interval),
+         date_trunc('day', now()),
+         '1 day'::interval
+       ) AS day
+     ),
+     view_counts AS (
+       SELECT date_trunc('day', viewed_at) AS day, count(*)::int AS n
+         FROM property_views
+        WHERE viewed_at >= now() - ($1 || ' days')::interval
+        GROUP BY 1
+     ),
+     enquiry_counts AS (
+       SELECT date_trunc('day', created_at) AS day, count(*)::int AS n
+         FROM enquiries
+        WHERE created_at >= now() - ($1 || ' days')::interval
+        GROUP BY 1
+     )
+     SELECT c.day,
+            COALESCE(v.n, 0) AS views,
+            COALESCE(e.n, 0) AS enquiries
+       FROM calendar c
+       LEFT JOIN view_counts    v ON v.day = c.day
+       LEFT JOIN enquiry_counts e ON e.day = c.day
+      ORDER BY c.day`,
+    [days],
+  );
+
+  return rows.map((r) => ({
+    day: r.day.toISOString().slice(0, 10),
+    views: r.views,
+    enquiries: r.enquiries,
+  }));
+}
+
+/**
+ * Best-performing properties in the window.
+ *
+ * The two counts are aggregated in separate subqueries rather than by joining
+ * both tables at once: a property with 40 views and 3 enquiries would produce
+ * 120 join rows, inflating both counts. This is the classic fan-out trap, and
+ * the reason each side is collapsed to one row per property before joining.
+ */
+export async function getTopProperties(
+  range: AnalyticsRange,
+  limit = 8,
+): Promise<TopProperty[]> {
+  const days = ANALYTICS_RANGE_DAYS[range];
+
+  const rows = await query<{
+    id: number;
+    title: string;
+    slug: string;
+    city: string;
+    is_active: boolean;
+    views: number;
+    enquiries: number;
+  }>(
+    `WITH window_bounds AS (
+       SELECT now() - ($1 || ' days')::interval AS start_at
+     ),
+     v AS (
+       SELECT property_id, count(*)::int AS n
+         FROM property_views, window_bounds
+        WHERE viewed_at >= start_at
+        GROUP BY property_id
+     ),
+     e AS (
+       SELECT property_id, count(*)::int AS n
+         FROM enquiries, window_bounds
+        WHERE created_at >= start_at
+        GROUP BY property_id
+     )
+     SELECT p.id, p.title, p.slug, p.city, p.is_active,
+            COALESCE(v.n, 0) AS views,
+            COALESCE(e.n, 0) AS enquiries
+       FROM properties p
+       LEFT JOIN v ON v.property_id = p.id
+       LEFT JOIN e ON e.property_id = p.id
+      WHERE COALESCE(v.n, 0) > 0 OR COALESCE(e.n, 0) > 0
+      ORDER BY COALESCE(v.n, 0) DESC, COALESCE(e.n, 0) DESC, p.id
+      LIMIT $2`,
+    [days, limit],
+  );
+
+  return rows.map((r) => ({
+    id: r.id,
+    title: r.title,
+    slug: r.slug,
+    city: r.city,
+    isActive: r.is_active,
+    views: r.views,
+    enquiries: r.enquiries,
+    conversionRate:
+      r.views === 0 ? 0 : Math.round((r.enquiries / r.views) * 1000) / 10,
+  }));
+}
+
+/**
+ * Views and enquiries grouped by a property attribute.
+ *
+ * `column` is NOT a parameter — an identifier cannot be parameterized in
+ * Postgres. It is resolved through an allowlist so no caller can reach the
+ * SQL text with arbitrary input (CLAUDE.md §3).
+ */
+const BREAKDOWN_COLUMNS = {
+  city: "p.city",
+  university: "p.university",
+  roomType: "p.room_type",
+} as const;
+
+export type BreakdownDimension = keyof typeof BREAKDOWN_COLUMNS;
+
+export async function getBreakdown(
+  dimension: BreakdownDimension,
+  range: AnalyticsRange,
+  limit = 6,
+): Promise<Breakdown[]> {
+  const column = BREAKDOWN_COLUMNS[dimension];
+  if (!column) throw new Error(`Unsupported breakdown dimension`);
+
+  const days = ANALYTICS_RANGE_DAYS[range];
+
+  const rows = await query<{ label: string; views: number; enquiries: number }>(
+    `WITH window_bounds AS (
+       SELECT now() - ($1 || ' days')::interval AS start_at
+     ),
+     v AS (
+       SELECT property_id, count(*)::int AS n
+         FROM property_views, window_bounds
+        WHERE viewed_at >= start_at
+        GROUP BY property_id
+     ),
+     e AS (
+       SELECT property_id, count(*)::int AS n
+         FROM enquiries, window_bounds
+        WHERE created_at >= start_at
+        GROUP BY property_id
+     )
+     SELECT ${column} AS label,
+            COALESCE(sum(v.n), 0)::int AS views,
+            COALESCE(sum(e.n), 0)::int AS enquiries
+       FROM properties p
+       LEFT JOIN v ON v.property_id = p.id
+       LEFT JOIN e ON e.property_id = p.id
+      GROUP BY ${column}
+     HAVING COALESCE(sum(v.n), 0) > 0 OR COALESCE(sum(e.n), 0) > 0
+      ORDER BY views DESC, enquiries DESC, label
+      LIMIT $2`,
+    [days, limit],
+  );
+
+  return rows;
+}
+
+/**
+ * Records a view, ignoring a repeat from the same visitor inside the dedupe
+ * window so a refresh or a back-navigation does not inflate the count.
+ *
+ * The check and the insert run as one statement: an INSERT ... SELECT with a
+ * NOT EXISTS guard cannot interleave the way a read-then-write pair can.
+ */
+export async function recordPropertyView(
+  propertyId: number,
+  visitorHash: string,
+  dedupeMinutes = 30,
+): Promise<void> {
+  await query(
+    `INSERT INTO property_views (property_id, visitor_hash)
+     SELECT $1, $2
+      WHERE NOT EXISTS (
+        SELECT 1 FROM property_views
+         WHERE property_id = $1
+           AND visitor_hash = $2
+           AND viewed_at >= now() - ($3 || ' minutes')::interval
+      )`,
+    [propertyId, visitorHash, dedupeMinutes],
+  );
+}
+
+/**
+ * View and enquiry counts for a set of properties, for the admin's view of the
+ * public listing.
+ *
+ * Takes the ids as a single array parameter rather than building `IN ($1,$2…)`
+ * — the placeholder count would then vary with the page size, and a query whose
+ * SHAPE depends on input is exactly what we avoid everywhere else.
+ *
+ * Each side is counted in its own subquery: joining both fact tables at once
+ * multiplies the counts together (the fan-out trap).
+ */
+export async function getPropertyStats(
+  propertyIds: readonly number[],
+): Promise<Map<number, { views: number; enquiries: number }>> {
+  if (propertyIds.length === 0) return new Map();
+
+  const rows = await query<{ id: number; views: number; enquiries: number }>(
+    `SELECT p.id,
+            COALESCE(v.n, 0) AS views,
+            COALESCE(e.n, 0) AS enquiries
+       FROM unnest($1::bigint[]) AS p(id)
+       LEFT JOIN (
+         SELECT property_id, count(*)::int AS n
+           FROM property_views
+          WHERE property_id = ANY($1::bigint[])
+          GROUP BY property_id
+       ) v ON v.property_id = p.id
+       LEFT JOIN (
+         SELECT property_id, count(*)::int AS n
+           FROM enquiries
+          WHERE property_id = ANY($1::bigint[])
+          GROUP BY property_id
+       ) e ON e.property_id = p.id`,
+    [propertyIds],
+  );
+
+  return new Map(
+    rows.map((row) => [row.id, { views: row.views, enquiries: row.enquiries }]),
+  );
+}
+
+/**
+ * The student's most recent enquiry on a property, if any.
+ *
+ * Used to show "you already enquired" instead of a blank form. Scoped to the
+ * student id from the session — never an email from the request — so one
+ * account cannot probe another's enquiry history.
+ */
+export async function findLatestEnquiryForStudent(
+  studentId: number,
+  propertyId: number,
+): Promise<{ id: number; createdAt: Date; status: EnquiryStatus } | null> {
+  const row = await queryOne<{
+    id: number;
+    created_at: Date;
+    status: EnquiryStatus;
+  }>(
+    `SELECT id, created_at, status
+       FROM enquiries
+      WHERE student_id = $1 AND property_id = $2
+      ORDER BY created_at DESC
+      LIMIT 1`,
+    [studentId, propertyId],
+  );
+
+  if (!row) return null;
+  return { id: row.id, createdAt: row.created_at, status: row.status };
 }
