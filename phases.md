@@ -322,22 +322,32 @@ product a student scans quickly, not a brochure.
 Deliberately **after** deploy: service workers require HTTPS, and aggressive SW
 caching during local development causes stale-asset confusion all build long.
 
-- [ ] `@ducanh2912/next-pwa` installed and configured; SW **disabled in development**
-- [ ] `app/manifest.ts` — name, short_name, `display: "standalone"`,
+- [x] **Hand-written `public/sw.js`** — no PWA plugin. `@ducanh2912/next-pwa`
+      requires webpack (this app builds with Turbopack) and is stale since
+      Sept 2024. Zero new dependencies.
+- [x] SW registers in production only; unregisters and clears caches in dev
+- [x] **Kill switch:** `NEXT_PUBLIC_DISABLE_SW=1` in Vercel + redeploy
+      unregisters the worker on every client, no code change needed
+- [x] `app/manifest.ts` — name, short_name, `display: "standalone"`,
       `start_url: "/"`, theme/background color, portrait orientation
-- [ ] Icons: 192px, 512px, and a 512px **maskable** variant (without maskable,
+- [x] Icons: 192px, 512px, and a 512px **maskable** variant (without maskable,
       Android crops the icon badly). Plus `apple-touch-icon` for iOS
-- [ ] `apple-mobile-web-app-capable` + status bar style meta for iOS standalone
-- [ ] Runtime caching strategy:
+- [x] `apple-mobile-web-app-capable` + status bar style meta for iOS standalone
+- [x] Runtime caching strategy:
   - App shell + static assets → precached
   - Property images → `CacheFirst`, 30-day expiry, capped entry count
   - `/api/properties*` → `NetworkFirst` with a short timeout, so viewed listings survive offline
   - **Never cache** `/api/auth/*` or `/api/admin/*` — auth responses must not be served from a cache
-- [ ] `app/offline/page.tsx` — offline fallback
-- [ ] `components/install-prompt.tsx` — captures `beforeinstallprompt`, shows a
+- [x] `app/offline/page.tsx` — offline fallback
+- [x] `components/install-prompt.tsx` — captures `beforeinstallprompt`, shows a
       dismissible install button; dismissal remembered in `localStorage`
-- [ ] Online/offline detection: writes (enquiry, OTP) show a clear offline state
+- [x] Online/offline detection: writes (enquiry, OTP) show a clear offline state
       instead of failing silently
+
+**Also fixed here (pre-existing mobile bugs the PWA exposed):** the header now
+paints a background on mobile so `viewport-fit=cover` cannot let content show
+through behind the status bar; OTP slots raised from 32px to 48×42px and inputs
+to 16px minimum, so taps land and iOS does not zoom on focus.
 
 **Out of scope here:** offline write queue and push notifications — both are v2
 (see Phase 12). Do not start them.

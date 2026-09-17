@@ -309,6 +309,11 @@ pipeline. State the limited scope plainly in the README.
 - **`pg_stat_ssl` lies through a pooler.** It reports the pooler's own backend
   connection, not the client link, so it reads `ssl=false` on a TLSv1.3
   connection. Read `client.connection.stream.encrypted/authorized` instead.
+- **No PWA plugin.** The service worker is hand-written at `public/sw.js`
+  (next-pwa needs webpack; this app uses Turbopack). Bump `CACHE_VERSION` when
+  caching rules change. Emergency off switch: `NEXT_PUBLIC_DISABLE_SW=1`.
+- **Never cache authenticated responses.** `shouldBypass()` in `sw.js` is the
+  boundary, and `tests/service-worker.test.ts` guards it.
 - **shadcn style is `base-nova`, built on Base UI — not Radix.** Components take
   a `render` prop, not `asChild`. `DropdownMenuTrigger` renders its own button,
   so style it with `buttonVariants(...)` rather than nesting a `<Button>`.

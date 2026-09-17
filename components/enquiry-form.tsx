@@ -3,12 +3,13 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { standardSchemaResolver } from "@hookform/resolvers/standard-schema";
-import { CheckCircle2, Loader2 } from "lucide-react";
+import { CheckCircle2, Loader2, WifiOff } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { useOnline } from "@/hooks/use-online";
 import { enquiryInputSchema, type EnquiryInput } from "@/lib/validation";
 
 type Props = {
@@ -36,6 +37,7 @@ export function EnquiryForm({
 }: Props) {
   const [submitted, setSubmitted] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const online = useOnline();
 
   const {
     register,
@@ -187,7 +189,22 @@ export function EnquiryForm({
         </p>
       ) : null}
 
-      <Button type="submit" size="lg" disabled={isSubmitting} className="w-full">
+      {!online ? (
+        <p
+          role="status"
+          className="flex items-center gap-2 rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground"
+        >
+          <WifiOff className="size-4 shrink-0" aria-hidden />
+          You&apos;re offline — reconnect to send this enquiry.
+        </p>
+      ) : null}
+
+      <Button
+        type="submit"
+        size="lg"
+        disabled={isSubmitting || !online}
+        className="w-full"
+      >
         {isSubmitting ? (
           <>
             <Loader2 className="size-4 animate-spin" aria-hidden />

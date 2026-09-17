@@ -2,12 +2,13 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { ArrowLeft, Loader2, Mail } from "lucide-react";
+import { ArrowLeft, Loader2, Mail, WifiOff } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { Label } from "@/components/ui/label";
+import { useOnline } from "@/hooks/use-online";
 
 const RESEND_COOLDOWN_SECONDS = 30;
 
@@ -19,6 +20,7 @@ export function SignupForm({ next }: { next: string }) {
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [cooldown, setCooldown] = useState(0);
+  const online = useOnline();
 
   useEffect(() => {
     if (cooldown <= 0) return;
@@ -106,7 +108,22 @@ export function SignupForm({ next }: { next: string }) {
           </p>
         ) : null}
 
-        <Button type="submit" size="lg" disabled={pending || !email} className="w-full gap-2">
+        {!online ? (
+          <p
+            role="status"
+            className="flex items-center gap-2 rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground"
+          >
+            <WifiOff className="size-4 shrink-0" aria-hidden />
+            You&apos;re offline — reconnect to sign in.
+          </p>
+        ) : null}
+
+        <Button
+          type="submit"
+          size="lg"
+          disabled={pending || !email || !online}
+          className="w-full gap-2"
+        >
           {pending ? (
             <>
               <Loader2 className="size-4 animate-spin" aria-hidden />

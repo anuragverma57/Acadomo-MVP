@@ -3,6 +3,7 @@ import { Inter, Space_Grotesk } from "next/font/google";
 
 import { BottomNav } from "@/components/bottom-nav";
 import { SiteHeader } from "@/components/site-header";
+import { ServiceWorkerRegistrar } from "@/components/service-worker";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { currentStudent } from "@/lib/session";
@@ -33,6 +34,14 @@ export const metadata: Metadata = {
   description:
     "Discover, compare and enquire about student accommodation across global study destinations.",
   applicationName: "AcaDomo",
+  manifest: "/manifest.webmanifest",
+  icons: {
+    icon: [
+      { url: "/icons/favicon.svg", type: "image/svg+xml" },
+      { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+    ],
+    apple: "/icons/apple-touch-icon.png",
+  },
   appleWebApp: {
     capable: true,
     title: "AcaDomo",
@@ -70,6 +79,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           <SiteHeader studentEmail={student?.email} />
           <main className="flex-1">{children}</main>
           <BottomNav />
+          <ServiceWorkerRegistrar />
           <Toaster />
         </ThemeProvider>
       </body>

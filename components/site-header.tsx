@@ -28,7 +28,10 @@ export function SiteHeader({ studentEmail }: { studentEmail?: string | null }) {
         "sticky top-0 z-50 pt-[env(safe-area-inset-top,0px)] transition-colors duration-200",
         scrolled
           ? "border-b border-border bg-background/80 backdrop-blur-md"
-          : "border-b border-transparent bg-transparent",
+          : // Must paint a background on mobile: viewport-fit=cover extends the
+            // page under the status bar, and a transparent header lets content
+            // show through behind the clock in standalone mode.
+            "border-b border-transparent bg-background md:bg-transparent",
       )}
     >
       <div className="mx-auto flex h-16 max-w-6xl items-center gap-8 px-4 md:px-6">

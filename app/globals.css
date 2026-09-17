@@ -149,12 +149,28 @@ body {
   }
 }
 
-/* Touch targets stay >= 44px on coarse pointers regardless of visual size. */
+/* Touch targets stay >= 44px on coarse pointers regardless of visual size.
+   Includes OTP slots and select triggers: shadcn renders those at 32px, which
+   is unreliable to tap on a phone. */
 @media (pointer: coarse) {
   button,
   a[role="button"],
-  [data-slot="button"] {
+  [data-slot="button"],
+  [data-slot="select-trigger"] {
     min-block-size: 44px;
+  }
+
+  [data-slot="input-otp-slot"] {
+    min-block-size: 48px;
+    min-inline-size: 42px;
+    font-size: 1.125rem;
+  }
+
+  /* Under 16px, iOS Safari zooms the page on focus — which then shifts the
+     layout and makes subsequent taps land off-target. */
+  input:not([type="checkbox"]):not([type="radio"]),
+  textarea {
+    font-size: max(16px, 1rem);
   }
 }
 
