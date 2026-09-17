@@ -620,3 +620,17 @@ export async function listEnquiriesForStudent(
   );
   return rows.map(toEnquiry);
 }
+
+/**
+ * Whether an admin account exists for this email.
+ *
+ * Deliberately does NOT select password_hash — only the authentication path
+ * may read that (see findAdminByEmail).
+ */
+export async function adminExists(email: string): Promise<boolean> {
+  const row = await queryOne<{ exists: boolean }>(
+    "SELECT true AS exists FROM admin_users WHERE email = $1",
+    [email],
+  );
+  return row !== null;
+}

@@ -23,7 +23,8 @@ export async function POST(request: Request) {
       return tooManyRequests(result.retryAfterSeconds);
     }
 
-    return ok({ sent: true });
+    // demoCode is present only when demo mode is on (see isDemoOtpEnabled).
+    return ok({ sent: true, demoCode: result.demoCode });
   } catch (error) {
     return serverError("POST /api/auth/request-otp", error);
   }

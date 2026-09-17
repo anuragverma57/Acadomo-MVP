@@ -302,12 +302,12 @@ product a student scans quickly, not a brochure.
 **Goal:** a live URL a stranger can open.
 **Est: 45 min**
 
-- [ ] Neon project created; `schema.sql` applied; seed run against it
-- [ ] Vercel project linked to the GitHub repo
-- [ ] Env vars set in Vercel: `DATABASE_URL` (pooled Neon string), `JWT_SECRET` (fresh, **not** the dev one), `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `RESEND_API_KEY`
-- [ ] Production build deploys clean
-- [ ] Smoke test on the live URL: listing loads · filters work · detail page loads · enquiry submits · **student OTP signup delivers a real email and verifies** · admin login works · admin API returns 401 without a cookie · dark mode persists
-- [ ] Confirm HTTPS and that the session cookie is `Secure` in prod
+- [x] Neon project created; `schema.sql` applied; seed run against it
+- [x] Vercel project linked to the GitHub repo
+- [x] Env vars set in Vercel: `DATABASE_URL` (pooled Neon string), `JWT_SECRET` (fresh, **not** the dev one), `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `RESEND_API_KEY`
+- [x] Production build deploys clean
+- [x] Smoke test on the live URL: listing loads · filters work · detail page loads · enquiry submits · **student OTP signup delivers a real email and verifies** · admin login works · admin API returns 401 without a cookie · dark mode persists
+- [x] Confirm HTTPS and that the session cookie is `Secure` in prod
 
 **Verify:** open the live URL on a phone and complete the whole loop
 
@@ -369,8 +369,8 @@ to 16px minimum, so taps land and iOS does not zoom on focus.
 **Goal:** the framing that turns a working app into an interview asset.
 **Est: 45 min**
 
-- [ ] `README.md`:
-  - One-paragraph what + live link + screenshots (desktop + mobile + **installed on a phone home screen**)
+- [x] `README.md`:
+  - [x] One-paragraph what + live link · **screenshots: placeholders in place, capture pending**
   - "Install as an app" instructions for Android and iOS
   - Stack table and **why each choice** (one line each)
   - Local setup: clone → `.env` → `db:reset` → `db:seed` → `dev` (test these steps from scratch)
@@ -379,8 +379,8 @@ to 16px minimum, so taps land and iOS does not zoom on focus.
   - **"What I'd build next"** — the v2 roadmap below, plus payments, maps, notifications, SEO/CWV work, Docker, CI
   - A short **"How I work"** note: backend developer with applied frontend; UI composed from shadcn/ui so the time went into SQL, auth, and service layering
   - Honest note on test scope
-- [ ] Favicon + page titles across all routes
-- [ ] Final pass: 404 page, no console errors, no `console.log` left in client code
+- [x] Favicon + page titles across all routes
+- [x] Final pass: 404 page, no console errors, no `console.log` left in client code
 - [ ] Lighthouse run on the listing page (Performance + PWA); record both in the README
 
 **Verify:** follow your own README on a clean clone and confirm it actually runs

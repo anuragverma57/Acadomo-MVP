@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import bcrypt from "bcryptjs";
 
 /**
@@ -84,7 +84,7 @@ vi.mock("@/lib/services/email", () => ({
   }),
 }));
 
-const { requestOtp, verifyOtp } = await import("@/lib/services/otp");
+const { requestOtp, verifyOtp, isDemoOtpEnabled } = await import("@/lib/services/otp");
 const { __resetRateLimits } = await import("@/lib/services/rate-limit");
 
 const EMAIL = "student@example.com";
@@ -244,5 +244,53 @@ describe("verifyOtp", () => {
 
       expect(store.codes.at(-1)!.consumedAt).not.toBeNull();
     });
+  });
+});
+
+describe("demo mode gating", () => {
+  /**
+   * Demo mode returns the OTP to the client. That is account takeover if it is
+   * ever on in a real deployment, so these assert it stays off unless very
+   * explicitly enabled — and that it can never coexist with real email.
+   */
+  const original = {
+    demo: process.env.NEXT_PUBLIC_DEMO_OTP,
+    key: process.env.RESEND_API_KEY,
+  };
+
+  afterEach(() => {
+    process.env.NEXT_PUBLIC_DEMO_OTP = original.demo;
+    process.env.RESEND_API_KEY = original.key;
+  });
+
+  function withEnv(demo?: string, key?: string) {
+    delete process.env.NEXT_PUBLIC_DEMO_OTP;
+    delete process.env.RESEND_API_KEY;
+    if (demo !== undefined) process.env.NEXT_PUBLIC_DEMO_OTP = demo;
+    if (key !== undefined) process.env.RESEND_API_KEY = key;
+    return isDemoOtpEnabled();
+  }
+
+  it("is off when nothing is set", () => {
+    expect(withEnv()).toBe(false);
+  });
+
+  it("is on only for the exact value '1' with no email provider", () => {
+    expect(withEnv("1")).toBe(true);
+  });
+
+  it("is off once real email is configured, even with the flag on", () => {
+    expect(withEnv("1", "re_live_key")).toBe(false);
+  });
+
+  it.each(["0", "true", "yes", ""])("is off for ambiguous value %s", (value) => {
+    expect(withEnv(value)).toBe(false);
+  });
+
+  it("omits demoCode from the result when disabled", async () => {
+    withEnv();
+    const result = await requestOtp("gated@example.com", IP);
+    expect(result.ok).toBe(true);
+    expect(result.ok && result.demoCode).toBeUndefined();
   });
 });

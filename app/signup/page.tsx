@@ -27,11 +27,9 @@ export default async function SignupPage({
 
   return (
     <div className="mx-auto flex min-h-[70vh] max-w-sm flex-col justify-center px-4 py-12">
-      <h1 className="text-display text-3xl">
-        Sign in to AcaDomo
-      </h1>
+      <h1 className="text-display text-3xl">Sign in to AcaDomo</h1>
       <p className="mt-1.5 text-sm text-muted-foreground text-pretty">
-        Save properties to your shortlist and keep track of your enquiries.
+        Students: save properties and track enquiries. Staff: manage enquiries.
       </p>
       <div className="mt-8">
         <SignupForm next={next} />

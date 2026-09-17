@@ -33,8 +33,23 @@ const SEND_WINDOW_MS = 60 * 60_000; // 1 hour
 const CODE_HASH_ROUNDS = 10;
 
 export type RequestOtpResult =
-  | { ok: true }
+  | { ok: true; demoCode?: string }
   | { ok: false; reason: "throttled"; retryAfterSeconds: number };
+
+/**
+ * Demo mode returns the code to the client so the sign-in flow can be shown
+ * without an email provider.
+ *
+ * This is an ACCOUNT TAKEOVER hole if enabled in a real deployment — anyone
+ * could request a code for any address and read it back. It is therefore
+ * opt-in, off by default, and force-disabled the moment real email is
+ * configured, so the two can never be on at once.
+ */
+export function isDemoOtpEnabled(): boolean {
+  return (
+    process.env.NEXT_PUBLIC_DEMO_OTP === "1" && !process.env.RESEND_API_KEY
+  );
+}
 
 export type VerifyOtpResult =
   | { ok: true; student: Student }
@@ -84,7 +99,7 @@ export async function requestOtp(
 
   await sendOtpEmail(email, code, TTL_MINUTES);
 
-  return { ok: true };
+  return isDemoOtpEnabled() ? { ok: true, demoCode: code } : { ok: true };
 }
 
 /**

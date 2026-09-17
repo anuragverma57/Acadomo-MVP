@@ -21,6 +21,9 @@ export async function sendOtpEmail(
   const apiKey = process.env.RESEND_API_KEY;
 
   if (!apiKey) {
+    // Demo mode surfaces the code in the UI instead, so no provider is needed.
+    if (process.env.NEXT_PUBLIC_DEMO_OTP === "1") return;
+
     if (process.env.NODE_ENV === "production") {
       throw new Error("RESEND_API_KEY is not configured");
     }
