@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Search, SlidersHorizontal, X } from "lucide-react";
+import { Loader2, Search, SlidersHorizontal, X } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -38,6 +38,8 @@ function SelectFilter({
   options: { value: string; label: string }[];
   onChange: (value: string | undefined) => void;
 }) {
+  const placeholder = `Any ${label.toLowerCase()}`;
+
   return (
     <div className="space-y-1.5">
       <label className="text-xs font-medium text-muted-foreground">{label}</label>
@@ -48,10 +50,16 @@ function SelectFilter({
         }
       >
         <SelectTrigger className="w-full">
-          <SelectValue />
+          {/* Render the label explicitly: SelectValue falls back to the raw
+              value when it cannot resolve one, which leaked the sentinel. */}
+          <SelectValue>
+            {value
+              ? (options.find((option) => option.value === value)?.label ?? value)
+              : placeholder}
+          </SelectValue>
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value={ANY}>Any {label.toLowerCase()}</SelectItem>
+          <SelectItem value={ANY}>{placeholder}</SelectItem>
           {options.map((option) => (
             <SelectItem key={option.value} value={option.value}>
               {option.label}
@@ -150,7 +158,8 @@ export function FilterBar({
   options: FilterOptions;
   resultCount: number;
 }) {
-  const { params, setParams, clearAll, activeCount } = useFilterParams();
+  const { params, setParams, clearAll, activeCount, isPending } =
+    useFilterParams();
 
   // Adjusting state during render (rather than in an effect) is React's
   // documented way to reset local state when a prop changes — here, when the
@@ -239,10 +248,23 @@ export function FilterBar({
       </div>
 
       <div className="flex items-center justify-between gap-4">
-        <p className="text-sm text-muted-foreground" aria-live="polite">
-          <span className="font-medium text-foreground">{resultCount}</span>{" "}
-          {resultCount === 1 ? "property" : "properties"}
-          {params.city ? ` in ${params.city}` : ""}
+        <p
+          className="flex items-center gap-2 text-sm text-muted-foreground"
+          aria-live="polite"
+          aria-busy={isPending}
+        >
+          {isPending ? (
+            <>
+              <Loader2 className="size-3.5 animate-spin" aria-hidden />
+              Updating results…
+            </>
+          ) : (
+            <>
+              <span className="font-medium text-foreground">{resultCount}</span>{" "}
+              {resultCount === 1 ? "property" : "properties"}
+              {params.city ? ` in ${params.city}` : ""}
+            </>
+          )}
         </p>
 
         {activeCount > 0 ? (

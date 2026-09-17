@@ -43,11 +43,22 @@ function Button({
   className,
   variant = "default",
   size = "default",
+  nativeButton,
+  render,
   ...props
 }: ButtonPrimitive.Props & VariantProps<typeof buttonVariants>) {
+  // Base UI assumes a native <button> unless told otherwise. When `render`
+  // substitutes another element — a Next.js <Link>, for instance — that
+  // assumption is wrong and Base UI warns about the lost button semantics.
+  // Default nativeButton to false whenever a custom element is rendered, so
+  // every call site gets correct semantics without repeating the prop.
+  const isNative = nativeButton ?? render === undefined
+
   return (
     <ButtonPrimitive
       data-slot="button"
+      nativeButton={isNative}
+      render={render}
       className={cn(buttonVariants({ variant, size, className }))}
       {...props}
     />

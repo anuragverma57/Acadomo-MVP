@@ -6,7 +6,8 @@ import {
   updateEnquiryStatus,
   type Enquiry,
 } from "@/lib/db/queries";
-import type { EnquiryInput, EnquiryStatus } from "@/lib/validation";
+import { searchEnquiries, type EnquiryPage } from "@/lib/db/queries";
+import type { EnquiryFilters, EnquiryInput, EnquiryStatus } from "@/lib/validation";
 
 /**
  * Enquiry business rules. Services take plain arguments and return plain data —
@@ -59,4 +60,10 @@ export async function markEnquiryStatus(
   status: EnquiryStatus,
 ): Promise<Enquiry | null> {
   return updateEnquiryStatus(id, status);
+}
+
+export async function findEnquiries(
+  filters: EnquiryFilters,
+): Promise<EnquiryPage> {
+  return searchEnquiries(filters);
 }

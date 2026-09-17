@@ -6,6 +6,7 @@ import { SiteHeader } from "@/components/site-header";
 import { ServiceWorkerRegistrar } from "@/components/service-worker";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
+import { getAdminSession } from "@/lib/auth";
 import { currentStudent } from "@/lib/session";
 
 import "./globals.css";
@@ -61,7 +62,12 @@ export const viewport: Viewport = {
 };
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
-  const student = await currentStudent();
+  // Resolve BOTH realms: the shell must know which one is active, or an admin
+  // sees student tabs and a "Sign in" button while already signed in.
+  const [student, admin] = await Promise.all([
+    currentStudent(),
+    getAdminSession(),
+  ]);
 
   return (
     <html
@@ -76,9 +82,12 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           enableSystem
           disableTransitionOnChange
         >
-          <SiteHeader studentEmail={student?.email} />
+          <SiteHeader
+            studentEmail={student?.email}
+            adminEmail={admin?.email}
+          />
           <main className="flex-1">{children}</main>
-          <BottomNav />
+          <BottomNav isAdmin={Boolean(admin)} />
           <ServiceWorkerRegistrar />
           <Toaster />
         </ThemeProvider>

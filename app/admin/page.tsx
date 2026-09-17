@@ -1,13 +1,12 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { AdminSignOut } from "@/components/admin-sign-out";
-import { EnquiriesTable } from "@/components/enquiries-table";
+import { AdminPagination } from "@/components/admin-pagination";
+import { EnquiriesList } from "@/components/enquiries-table";
+import { EnquiryFilters } from "@/components/enquiry-filters";
 import { getAdminSession } from "@/lib/auth";
-import { getEnquiries, getEnquiryCounts } from "@/lib/services/enquiries";
-import { ENQUIRY_STATUSES, type EnquiryStatus } from "@/lib/validation";
-import { cn } from "@/lib/utils";
+import { findEnquiries, getEnquiryCounts } from "@/lib/services/enquiries";
+import { enquiryFiltersSchema } from "@/lib/validation";
 
 export const metadata: Metadata = {
   title: "Enquiries",
@@ -18,75 +17,42 @@ type Props = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
-const TABS = [
-  { key: undefined, label: "All" },
-  { key: "new" as const, label: "New" },
-  { key: "contacted" as const, label: "Contacted" },
-];
-
 export default async function AdminDashboardPage({ searchParams }: Props) {
-  // Middleware only checks that a cookie exists. This verifies the signature
-  // and the realm — it is the actual authorization boundary (CLAUDE.md §3).
+  // Middleware only checks the cookie exists. This verifies signature and
+  // realm — the actual authorization boundary (CLAUDE.md §3).
   const session = await getAdminSession();
-  if (!session) {
-    redirect("/admin/login");
-  }
+  if (!session) redirect("/admin/login");
 
   const raw = await searchParams;
-  const statusParam = typeof raw.status === "string" ? raw.status : undefined;
-  const status = ENQUIRY_STATUSES.includes(statusParam as EnquiryStatus)
-    ? (statusParam as EnquiryStatus)
-    : undefined;
 
-  const [enquiries, counts] = await Promise.all([
-    getEnquiries(status),
+  // Parse leniently: a stale or hand-edited link falls back to defaults rather
+  // than erroring the page.
+  const parsed = enquiryFiltersSchema.safeParse(raw);
+  const filters = parsed.success ? parsed.data : enquiryFiltersSchema.parse({});
+
+  const [page, counts] = await Promise.all([
+    findEnquiries(filters),
     getEnquiryCounts(),
   ]);
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 md:py-10">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-display text-3xl">Enquiries</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Signed in as {session.email}
-            <span className="text-muted-foreground/60"> · {session.role}</span>
-          </p>
-        </div>
-        <AdminSignOut />
+    <div className="mx-auto max-w-4xl px-4 py-8 md:py-10">
+      <div>
+        <h1 className="text-display text-3xl">Enquiries</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {counts.all} total · <span className="tabular">{counts.new}</span> new ·{" "}
+          <span className="tabular">{counts.contacted}</span> contacted
+        </p>
       </div>
 
-      <nav
-        aria-label="Filter enquiries"
-        className="mt-6 flex gap-1 border-b border-border"
-      >
-        {TABS.map((tab) => {
-          const active = status === tab.key;
-          const count = tab.key ? counts[tab.key] : counts.all;
-
-          return (
-            <Link
-              key={tab.label}
-              href={tab.key ? `/admin?status=${tab.key}` : "/admin"}
-              aria-current={active ? "page" : undefined}
-              className={cn(
-                "-mb-px border-b-2 px-4 py-2.5 text-sm font-medium transition-colors",
-                active
-                  ? "border-primary text-foreground"
-                  : "border-transparent text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {tab.label}
-              <span className="ml-1.5 text-xs text-muted-foreground tabular-nums">
-                {count}
-              </span>
-            </Link>
-          );
-        })}
-      </nav>
-
-      <div className="mt-6">
-        <EnquiriesTable enquiries={enquiries} />
+      <div className="mt-8 space-y-6">
+        <EnquiryFilters total={page.total} />
+        <EnquiriesList enquiries={page.items} />
+        <AdminPagination
+          page={page.page}
+          totalPages={page.totalPages}
+          params={raw}
+        />
       </div>
     </div>
   );

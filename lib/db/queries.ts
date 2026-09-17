@@ -1,9 +1,15 @@
 import { query, queryOne, transaction } from "@/lib/db/client";
 import type {
+  AdminPropertyFilters,
+  AdminPropertySortKey,
+  DateRange,
+  EnquiryFilters,
+  EnquirySortKey,
   EnquiryStatus,
   PropertyFilters,
   RoomType,
   SortKey,
+  VisibilityFilter,
 } from "@/lib/validation";
 
 /**
@@ -32,7 +38,9 @@ export type Property = {
   description: string;
   amenities: string[];
   imageUrl: string;
+  isActive: boolean;
   createdAt: Date;
+  updatedAt: Date;
 };
 
 export type Enquiry = {
@@ -77,7 +85,9 @@ type PropertyRow = {
   description: string;
   amenities: string[];
   image_url: string;
+  is_active: boolean;
   created_at: Date;
+  updated_at: Date;
 };
 
 type EnquiryRow = {
@@ -108,7 +118,9 @@ function toProperty(row: PropertyRow): Property {
     description: row.description,
     amenities: row.amenities,
     imageUrl: row.image_url,
+    isActive: row.is_active,
     createdAt: row.created_at,
+    updatedAt: row.updated_at,
   };
 }
 
@@ -134,7 +146,7 @@ function toEnquiry(row: EnquiryRow): Enquiry {
 
 const PROPERTY_COLUMNS = `
   id, title, slug, city, country, university, price_per_week, currency,
-  room_type, description, amenities, image_url, created_at
+  room_type, description, amenities, image_url, is_active, created_at, updated_at
 `;
 
 /**
@@ -158,10 +170,17 @@ const SORT_SQL: Record<SortKey, string> = {
 export function buildPropertyWhere(
   filters: Partial<PropertyFilters>,
   startIndex = 1,
+  options: { includeInactive?: boolean } = {},
 ): { clause: string; params: unknown[] } {
   const conditions: string[] = [];
   const params: unknown[] = [];
   let i = startIndex;
+
+  // Visibility is enforced HERE, in SQL — never by the UI omitting a row.
+  // Only admin queries may opt out.
+  if (!options.includeInactive) {
+    conditions.push("is_active = true");
+  }
 
   if (filters.q) {
     // Single placeholder used three times — one param, three columns searched.
@@ -250,7 +269,7 @@ export async function listProperties(
 
 export async function getPropertyBySlug(slug: string): Promise<Property | null> {
   const row = await queryOne<PropertyRow>(
-    `SELECT ${PROPERTY_COLUMNS} FROM properties WHERE slug = $1`,
+    `SELECT ${PROPERTY_COLUMNS} FROM properties WHERE slug = $1 AND is_active = true`,
     [slug],
   );
   return row ? toProperty(row) : null;
@@ -258,7 +277,7 @@ export async function getPropertyBySlug(slug: string): Promise<Property | null> 
 
 export async function propertyExists(id: number): Promise<boolean> {
   const row = await queryOne<{ exists: boolean }>(
-    "SELECT true AS exists FROM properties WHERE id = $1",
+    "SELECT true AS exists FROM properties WHERE id = $1 AND is_active = true",
     [id],
   );
   return row !== null;
@@ -267,17 +286,17 @@ export async function propertyExists(id: number): Promise<boolean> {
 /** Distinct values for the filter dropdowns, plus the real price bounds. */
 export async function getFilterOptions(): Promise<FilterOptions> {
   const [cities, universities, roomTypes, range] = await Promise.all([
-    query<{ city: string }>("SELECT DISTINCT city FROM properties ORDER BY city"),
+    query<{ city: string }>("SELECT DISTINCT city FROM properties WHERE is_active = true ORDER BY city"),
     query<{ university: string }>(
-      "SELECT DISTINCT university FROM properties ORDER BY university",
+      "SELECT DISTINCT university FROM properties WHERE is_active = true ORDER BY university",
     ),
     query<{ room_type: RoomType }>(
-      "SELECT DISTINCT room_type FROM properties ORDER BY room_type",
+      "SELECT DISTINCT room_type FROM properties WHERE is_active = true ORDER BY room_type",
     ),
     queryOne<{ min: number; max: number }>(
       `SELECT coalesce(min(price_per_week), 0) AS min,
               coalesce(max(price_per_week), 0) AS max
-         FROM properties`,
+         FROM properties WHERE is_active = true`,
     ),
   ]);
 
@@ -589,7 +608,7 @@ export async function listSavedProperties(
             p.amenities, p.image_url, p.created_at
        FROM properties p
        JOIN saved_properties s ON s.property_id = p.id
-      WHERE s.student_id = $1
+      WHERE s.student_id = $1 AND p.is_active = true
       ORDER BY s.created_at DESC`,
     [studentId],
   );
@@ -633,4 +652,346 @@ export async function adminExists(email: string): Promise<boolean> {
     [email],
   );
   return row !== null;
+}
+
+// ---------------------------------------------------------------------------
+// Admin: property management
+// ---------------------------------------------------------------------------
+
+export type PropertyInput = {
+  title: string;
+  city: string;
+  country: string;
+  university: string;
+  pricePerWeek: number;
+  roomType: RoomType;
+  description: string;
+  amenities: string[];
+  imageUrl: string;
+  isActive: boolean;
+};
+
+/** Admin listing — includes inactive rows, which public queries never return. */
+export async function listAllProperties(): Promise<Property[]> {
+  const rows = await query<PropertyRow>(
+    `SELECT ${PROPERTY_COLUMNS} FROM properties ORDER BY created_at DESC`,
+  );
+  return rows.map(toProperty);
+}
+
+export async function getPropertyById(id: number): Promise<Property | null> {
+  const row = await queryOne<PropertyRow>(
+    `SELECT ${PROPERTY_COLUMNS} FROM properties WHERE id = $1`,
+    [id],
+  );
+  return row ? toProperty(row) : null;
+}
+
+/** True when the slug is taken by a DIFFERENT property. */
+export async function slugTaken(slug: string, excludeId?: number): Promise<boolean> {
+  const row = excludeId
+    ? await queryOne<{ id: number }>(
+        "SELECT id FROM properties WHERE slug = $1 AND id <> $2",
+        [slug, excludeId],
+      )
+    : await queryOne<{ id: number }>(
+        "SELECT id FROM properties WHERE slug = $1",
+        [slug],
+      );
+  return row !== null;
+}
+
+export async function createProperty(
+  input: PropertyInput & { slug: string },
+): Promise<Property> {
+  const row = await queryOne<PropertyRow>(
+    `INSERT INTO properties
+       (title, slug, city, country, university, price_per_week, room_type,
+        description, amenities, image_url, is_active)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+     RETURNING ${PROPERTY_COLUMNS}`,
+    [
+      input.title,
+      input.slug,
+      input.city,
+      input.country,
+      input.university,
+      input.pricePerWeek,
+      input.roomType,
+      input.description,
+      input.amenities,
+      input.imageUrl,
+      input.isActive,
+    ],
+  );
+
+  if (!row) throw new Error("Property insert returned no row");
+  return toProperty(row);
+}
+
+export async function updateProperty(
+  id: number,
+  input: PropertyInput & { slug: string },
+): Promise<Property | null> {
+  const row = await queryOne<PropertyRow>(
+    `UPDATE properties
+        SET title = $2, slug = $3, city = $4, country = $5, university = $6,
+            price_per_week = $7, room_type = $8, description = $9,
+            amenities = $10, image_url = $11, is_active = $12, updated_at = now()
+      WHERE id = $1
+      RETURNING ${PROPERTY_COLUMNS}`,
+    [
+      id,
+      input.title,
+      input.slug,
+      input.city,
+      input.country,
+      input.university,
+      input.pricePerWeek,
+      input.roomType,
+      input.description,
+      input.amenities,
+      input.imageUrl,
+      input.isActive,
+    ],
+  );
+  return row ? toProperty(row) : null;
+}
+
+export async function setPropertyActive(
+  id: number,
+  isActive: boolean,
+): Promise<Property | null> {
+  const row = await queryOne<PropertyRow>(
+    `UPDATE properties SET is_active = $2, updated_at = now()
+      WHERE id = $1 RETURNING ${PROPERTY_COLUMNS}`,
+    [id, isActive],
+  );
+  return row ? toProperty(row) : null;
+}
+
+// ---------------------------------------------------------------------------
+// Admin: enquiry search, filtering, sorting and pagination
+// ---------------------------------------------------------------------------
+
+export type EnquiryPage = {
+  items: Enquiry[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+};
+
+/** ORDER BY cannot be parameterized, so sort keys map through an allowlist. */
+const ENQUIRY_SORT_SQL: Record<EnquirySortKey, string> = {
+  newest: "e.created_at DESC, e.id DESC",
+  oldest: "e.created_at ASC, e.id ASC",
+  property: "p.title ASC, e.created_at DESC",
+};
+
+/** Date ranges are fixed windows, never raw user-supplied SQL intervals. */
+const RANGE_DAYS: Record<DateRange, number | null> = {
+  all: null,
+  "7d": 7,
+  "30d": 30,
+  "90d": 90,
+};
+
+/**
+ * Builds the shared WHERE clause for listing and counting enquiries.
+ * Exported for unit testing — the tests assert no value reaches the SQL text.
+ */
+export function buildEnquiryWhere(
+  filters: Partial<EnquiryFilters>,
+  startIndex = 1,
+): { clause: string; params: unknown[] } {
+  const conditions: string[] = [];
+  const params: unknown[] = [];
+  let i = startIndex;
+
+  if (filters.q) {
+    conditions.push(
+      `(e.name ILIKE '%' || $${i} || '%' OR e.email ILIKE '%' || $${i} || '%' ` +
+        `OR e.message ILIKE '%' || $${i} || '%' OR p.title ILIKE '%' || $${i} || '%')`,
+    );
+    params.push(filters.q);
+    i += 1;
+  }
+
+  if (filters.status) {
+    conditions.push(`e.status = $${i}`);
+    params.push(filters.status);
+    i += 1;
+  }
+
+  const days = filters.range ? RANGE_DAYS[filters.range] : null;
+  if (days !== null && days !== undefined) {
+    // The interval is built from an allowlisted integer, not from input.
+    conditions.push(`e.created_at >= now() - ($${i} || ' days')::interval`);
+    params.push(days);
+    i += 1;
+  }
+
+  return {
+    clause: conditions.length ? `WHERE ${conditions.join(" AND ")}` : "",
+    params,
+  };
+}
+
+export async function searchEnquiries(
+  filters: EnquiryFilters,
+): Promise<EnquiryPage> {
+  const { clause, params } = buildEnquiryWhere(filters);
+  const orderBy = ENQUIRY_SORT_SQL[filters.sort] ?? ENQUIRY_SORT_SQL.newest;
+  const offset = (filters.page - 1) * filters.pageSize;
+
+  const [rows, countRow] = await Promise.all([
+    query<EnquiryRow>(
+      `${ENQUIRY_SELECT} ${clause}
+        ORDER BY ${orderBy}
+        LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+      [...params, filters.pageSize, offset],
+    ),
+    queryOne<{ count: number }>(
+      `SELECT count(*)::int AS count
+         FROM enquiries e
+         JOIN properties p ON p.id = e.property_id
+         ${clause}`,
+      params,
+    ),
+  ]);
+
+  const total = countRow?.count ?? 0;
+
+  return {
+    items: rows.map(toEnquiry),
+    total,
+    page: filters.page,
+    pageSize: filters.pageSize,
+    totalPages: Math.max(1, Math.ceil(total / filters.pageSize)),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Admin: property search, filtering, sorting and pagination
+// ---------------------------------------------------------------------------
+
+/** ORDER BY cannot be parameterized — sort keys map through an allowlist. */
+const ADMIN_PROPERTY_SORT_SQL: Record<AdminPropertySortKey, string> = {
+  newest: "created_at DESC, id DESC",
+  oldest: "created_at ASC, id ASC",
+  price_asc: "price_per_week ASC, id DESC",
+  price_desc: "price_per_week DESC, id DESC",
+  title: "title ASC, id DESC",
+};
+
+const VISIBILITY_SQL: Record<VisibilityFilter, string | null> = {
+  all: null,
+  active: "is_active = true",
+  hidden: "is_active = false",
+};
+
+/**
+ * WHERE clause for the admin property list. Unlike the public builder this can
+ * return hidden rows — visibility is an explicit filter here, not a guard.
+ *
+ * Exported for unit testing.
+ */
+export function buildAdminPropertyWhere(
+  filters: Partial<AdminPropertyFilters>,
+  startIndex = 1,
+): { clause: string; params: unknown[] } {
+  const conditions: string[] = [];
+  const params: unknown[] = [];
+  let i = startIndex;
+
+  if (filters.q) {
+    conditions.push(
+      `(title ILIKE '%' || $${i} || '%' OR city ILIKE '%' || $${i} || '%' ` +
+        `OR university ILIKE '%' || $${i} || '%')`,
+    );
+    params.push(filters.q);
+    i += 1;
+  }
+
+  if (filters.city) {
+    conditions.push(`city = $${i}`);
+    params.push(filters.city);
+    i += 1;
+  }
+
+  if (filters.roomType) {
+    conditions.push(`room_type = $${i}`);
+    params.push(filters.roomType);
+    i += 1;
+  }
+
+  const visibility = filters.visibility
+    ? VISIBILITY_SQL[filters.visibility]
+    : null;
+  if (visibility) conditions.push(visibility);
+
+  return {
+    clause: conditions.length ? `WHERE ${conditions.join(" AND ")}` : "",
+    params,
+  };
+}
+
+export type AdminPropertyPage = {
+  items: Property[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  activeCount: number;
+  hiddenCount: number;
+};
+
+export async function searchAdminProperties(
+  filters: AdminPropertyFilters,
+): Promise<AdminPropertyPage> {
+  const { clause, params } = buildAdminPropertyWhere(filters);
+  const orderBy =
+    ADMIN_PROPERTY_SORT_SQL[filters.sort] ?? ADMIN_PROPERTY_SORT_SQL.newest;
+  const offset = (filters.page - 1) * filters.pageSize;
+
+  const [rows, countRow, totals] = await Promise.all([
+    query<PropertyRow>(
+      `SELECT ${PROPERTY_COLUMNS}
+         FROM properties
+         ${clause}
+        ORDER BY ${orderBy}
+        LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+      [...params, filters.pageSize, offset],
+    ),
+    queryOne<{ count: number }>(
+      `SELECT count(*)::int AS count FROM properties ${clause}`,
+      params,
+    ),
+    queryOne<{ active: number; hidden: number }>(
+      `SELECT count(*) FILTER (WHERE is_active)::int      AS active,
+              count(*) FILTER (WHERE NOT is_active)::int  AS hidden
+         FROM properties`,
+    ),
+  ]);
+
+  const total = countRow?.count ?? 0;
+
+  return {
+    items: rows.map(toProperty),
+    total,
+    page: filters.page,
+    pageSize: filters.pageSize,
+    totalPages: Math.max(1, Math.ceil(total / filters.pageSize)),
+    activeCount: totals?.active ?? 0,
+    hiddenCount: totals?.hidden ?? 0,
+  };
+}
+
+/** Distinct cities across ALL properties, hidden included. */
+export async function getAdminPropertyCities(): Promise<string[]> {
+  const rows = await query<{ city: string }>(
+    "SELECT DISTINCT city FROM properties ORDER BY city",
+  );
+  return rows.map((row) => row.city);
 }

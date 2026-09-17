@@ -389,6 +389,108 @@ to 16px minimum, so taps land and iOS does not zoom on focus.
 
 ---
 
+## Phase 8.5 — Admin Polish & Property Management
+**Goal:** fix the realm bleed in the UI, and give admins the write path the JD asks for.
+**Est: 2.5–3 hrs**
+
+Two problems this closes. First, the layout only reads the **student** session,
+so a signed-in admin sees "Sign in" plus Saved/Account tabs that belong to a
+different realm — the separation exists in the tokens but not in the UI.
+Second, admins can read enquiries but cannot manage properties at all, which is
+the JD's "admin dashboards for managing properties".
+
+### Session-aware shell
+- [x] Layout resolves **both** sessions; header and bottom nav switch on realm
+- [x] Admin shell: Dashboard · Properties · Enquiries + Sign out —
+      no Saved, no Account, no Sign in
+- [x] Student shell unchanged
+- [x] Signed-in admin visiting `/saved` or `/account` is redirected, not shown
+      an empty student page
+
+### Schema
+- [x] `properties.is_active boolean NOT NULL DEFAULT true` — soft disable, so a
+      hidden property keeps its enquiry history for analytics
+- [x] `properties.updated_at timestamptz` maintained on edit
+- [x] Public queries filter `is_active = true`; **enforced in the query layer**,
+      never by the UI hiding a row
+
+### Property management
+- [x] `GET/POST /api/admin/properties` · `PATCH /api/admin/properties/[id]`
+- [x] Every handler re-verifies the admin session (middleware is UX only)
+- [x] Zod schema for property input, shared client and server
+- [x] Slug generated server-side and uniqueness-checked
+- [x] `/admin/properties` — table with active state and inline toggle
+- [x] `/admin/properties/new` and `/admin/properties/[id]` — create and edit form
+- [x] Image by **URL**, not upload — storage plumbing stays out of scope
+
+### Seed data for Phase 9 analytics
+- [x] Backdate enquiries across ~90 days so "enquiries over time" has a real
+      shape rather than one spike on seed day
+- [x] Vary status and spread across properties, cities and universities
+- [x] A few inactive properties so the filter is visibly doing something
+
+**Verify:** admin header shows no student tabs · student header unchanged ·
+disabled property disappears from public listing **and** its API response ·
+create → appears in listing · edit → persists · non-admin PATCH → 401 ·
+`npm test` green · both themes · 375px
+
+> **Commit Checkpoint 8.5** — `feat(admin): property management and realm-aware shell`
+
+---
+
+## Phase 8.6 — List UX & Mobile Polish
+**Goal:** make both admin lists usable at scale, and fix the filter glitches.
+**Est: 2.5 hrs**
+
+Follow-up to 8.5. The enquiries table scrolled horizontally, neither admin list
+had search or pagination, and every filter surface had a visible lag on change.
+
+### Enquiries
+- [x] Table replaced with a card list — six columns of variable-length content
+      cannot fit a phone without horizontal scroll, which is what felt broken
+- [x] Search (name, email, message, property title), status filter,
+      date range (7/30/90 days), sort (newest/oldest/by property), pagination
+- [x] Date range passed as a **parameter**, never an inline interval string
+
+### Properties
+- [x] Same treatment: search (title/city/university), visibility filter,
+      city, room type, 5 sort options, pagination
+- [x] Admin WHERE builder deliberately does **not** force `is_active` —
+      visibility is a filter here, not a guard (the public builder still forces it)
+
+### Shared filter shell
+- [x] `components/filter-shell.tsx` — search + mobile bottom sheet with an
+      active-count badge, inline controls on desktop. Used by all three
+      list pages so they cannot drift apart again
+- [x] Fixes the `__any__` sentinel leaking into the trigger: Base UI's
+      `SelectValue` shows the raw value when it cannot resolve a label
+
+### Interaction fixes
+- [x] **Optimistic filter state** — `router.push` inside a transition leaves
+      `searchParams` stale until the server responds, so a control bound to the
+      URL showed the old value for the whole round-trip and then snapped.
+      `useOptimistic` applies the change immediately and React discards it once
+      the real URL lands
+- [x] Results grid dims while a change is in flight, count shows "Updating…"
+- [x] Mobile header retracts on scroll down, returns instantly on scroll up
+      (rAF-batched, threshold guarded, disabled under `prefers-reduced-motion`)
+- [x] Disabled pagination controls render a real `<button disabled>` —
+      a disabled `<a>` is still focusable and clickable
+- [x] `Button` infers `nativeButton={false}` when `render` substitutes a
+      non-button element, silencing Base UI's semantics warning at every call site
+
+### Seed
+- [x] 59 properties across 10 cities and 22 universities, 6 hidden
+- [x] 341 enquiries backdated across 90 days with a trend, ready for Phase 9
+
+**Verify:** no `<table>` or `overflow-x` on the enquiries page · filter counts
+sum correctly · injection payloads stay out of SQL · 0 Base UI warnings in the
+dev log · `npm test` green
+
+> **Commit Checkpoint 8.6** — `feat(admin): list search, filters, pagination and mobile polish`
+
+---
+
 ## v2 — after the MVP ships, before showcasing
 
 Planned, not cancelled. Build only once Phases 0–8 are deployed and green.

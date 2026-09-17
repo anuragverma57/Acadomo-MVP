@@ -197,6 +197,11 @@ If a task would break one of these, stop and say so rather than doing it.
   be checked in both themes before it counts as done — a hardcoded `bg-white`
   or `text-black` anywhere is a bug. Use semantic tokens (`bg-background`,
   `text-foreground`, `bg-muted`) exclusively.
+- **Filter controls read through `useOptimistic`, never raw `searchParams`.**
+  `router.push` inside a transition leaves `searchParams` stale until the server
+  responds, so a control bound directly to the URL shows the OLD value for the
+  whole round-trip and then snaps — which reads as a glitch. See
+  `hooks/use-optimistic-params.ts` and `hooks/use-filter-params.ts`.
 - **Mobile first.** Every page checked at 375px before it's called done.
 - Every interactive element reachable by keyboard with a visible focus ring.
 - Every list has a real empty state and a loading state. "No results" is a

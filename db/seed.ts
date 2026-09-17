@@ -177,6 +177,110 @@ const PROPERTIES: SeedProperty[] = [
   },
 ];
 
+
+// ---------------------------------------------------------------------------
+// Generated listings — expands the catalogue beyond the 15 hand-written ones
+// so pagination, filtering and analytics have realistic volume.
+// ---------------------------------------------------------------------------
+
+const CITY_UNIS: Array<[string, string[], number]> = [
+  ["London", ["University College London", "King's College London", "Imperial College London", "LSE"], 1.0],
+  ["Manchester", ["University of Manchester", "Manchester Metropolitan University"], 0.62],
+  ["Edinburgh", ["University of Edinburgh", "Heriot-Watt University"], 0.72],
+  ["Birmingham", ["University of Birmingham", "Aston University"], 0.55],
+  ["Glasgow", ["University of Glasgow", "University of Strathclyde"], 0.58],
+  ["Leeds", ["University of Leeds", "Leeds Beckett University"], 0.56],
+  ["Bristol", ["University of Bristol", "UWE Bristol"], 0.68],
+  ["Nottingham", ["University of Nottingham", "Nottingham Trent University"], 0.52],
+  ["Sheffield", ["University of Sheffield", "Sheffield Hallam University"], 0.5],
+  ["Liverpool", ["University of Liverpool", "Liverpool John Moores University"], 0.53],
+];
+
+const BUILDING_NAMES = [
+  "Ashfield Court", "Riverside Point", "The Foundry", "Granary Wharf",
+  "Kingsgate House", "Elmwood Place", "Station View", "The Maltings",
+  "Cornerstone Studios", "Parkside Halls", "Old Mill Quarter", "Beacon House",
+  "Trinity Gardens", "Willow Court", "The Exchange", "Northgate Lofts",
+  "Abbey Fields", "Central Quay", "Hollybrook House", "The Printworks",
+  "Sycamore Place", "Regent Court", "Meadowbank", "Bridgewater Studios",
+  "Castlegate", "The Clockhouse", "Fairview Halls", "Union Square",
+  "Chapel Yard", "Lakeside Court", "Brunel House", "The Arches",
+  "Orchard Place", "Victoria Quarter", "Summerfield", "Priory Court",
+  "The Granary", "Westbourne House", "Camden Yards", "Highfield Halls",
+  "Stonebridge", "The Weaving Shed", "Rosebank Court", "Eastgate Studios",
+];
+
+const ROOM_MIX: Array<[SeedProperty["roomType"], number]> = [
+  ["studio", 1.35],
+  ["ensuite", 1.0],
+  ["shared", 0.72],
+  ["apartment", 1.6],
+];
+
+const AMENITY_POOL = [
+  "En-suite bathroom", "Shared kitchen", "High-speed Wi-Fi", "Bills included",
+  "On-site gym", "24/7 security", "Laundry room", "Study lounge",
+  "Bike storage", "Communal lounge", "Cinema room", "Rooftop terrace",
+  "Courtyard garden", "Parcel collection", "Contents insurance",
+];
+
+function generatedProperties(): SeedProperty[] {
+  const out: SeedProperty[] = [];
+  let i = 0;
+
+  for (const [city, unis, priceFactor] of CITY_UNIS) {
+    // Bigger cities carry more stock, which keeps city filters uneven and real.
+    const count = city === "London" ? 7 : 4 + (i % 2);
+
+    for (let n = 0; n < count; n += 1) {
+      const [roomType, roomFactor] = ROOM_MIX[(i + n) % ROOM_MIX.length]!;
+      const name = BUILDING_NAMES[i % BUILDING_NAMES.length]!;
+      const university = unis[n % unis.length]!;
+
+      // Deterministic pseudo-variance: same seed run produces the same data.
+      const jitter = ((i * 37 + n * 13) % 21) - 10;
+      const price = Math.round(
+        (14000 * priceFactor * roomFactor + jitter * 350) / 500,
+      ) * 500;
+
+      const amenityCount = 4 + ((i + n) % 3);
+      const amenities = Array.from(
+        { length: amenityCount },
+        (_, a) => AMENITY_POOL[(i * 3 + n * 5 + a) % AMENITY_POOL.length]!,
+      ).filter((value, index, arr) => arr.indexOf(value) === index);
+
+      out.push({
+        title: `${name} — ${roomTypeTitle(roomType)}`,
+        city,
+        country: "United Kingdom",
+        university,
+        pricePerWeek: Math.max(9500, price),
+        roomType,
+        description:
+          `${roomType === "shared" ? "Shared" : roomType === "apartment" ? "Self-contained" : "Private"} accommodation in ${city}, ` +
+          `a short journey from ${university}. Purpose-built for students with on-site support, ` +
+          `secure entry and communal spaces designed for both study and downtime.`,
+        amenities,
+        imageUrl: img(i + n + 3),
+      });
+
+      i += 1;
+    }
+  }
+
+  return out;
+}
+
+function roomTypeTitle(roomType: SeedProperty["roomType"]): string {
+  return roomType === "ensuite"
+    ? "En-suite"
+    : roomType === "shared"
+      ? "Shared Room"
+      : roomType === "apartment"
+        ? "Apartment"
+        : "Studio";
+}
+
 /** "Iona House — Premium Studio" + London -> "iona-house-premium-studio-london" */
 function slugify(title: string, city: string): string {
   return `${title} ${city}`
@@ -199,7 +303,9 @@ async function seed() {
   // CASCADE clears dependent enquiries in one statement.
   await query("TRUNCATE properties, enquiries, students, otp_codes, admin_users RESTART IDENTITY CASCADE");
 
-  for (const p of PROPERTIES) {
+  const allProperties = [...PROPERTIES, ...generatedProperties()];
+
+  for (const p of allProperties) {
     await query(
       `INSERT INTO properties
          (title, slug, city, country, university, price_per_week, currency, room_type, description, amenities, image_url)
@@ -220,6 +326,57 @@ async function seed() {
     );
   }
 
+  // Hide a spread of listings across cities so the is_active filter is
+  // visibly doing something without gutting any one city.
+  await query(
+    `UPDATE properties SET is_active = false
+      WHERE id IN (SELECT id FROM properties ORDER BY (id * 7) % 23 LIMIT 6)`,
+  );
+
+  // Backdated enquiries so Phase 9's "enquiries over time" has a real shape.
+  // All-today rows would render as a single spike and prove nothing.
+  const names = [
+    "Aisha Khan", "Marco Rossi", "Chen Wei", "Priya Sharma", "Tom Becker",
+    "Sofia Almeida", "Yuki Tanaka", "Omar Haddad", "Lena Novak", "Diego Silva",
+    "Ana Petrova", "Raj Patel", "Emma Dubois", "Kwame Mensah", "Sara Lindqvist",
+  ];
+
+  const active = await query<{ id: number }>(
+    "SELECT id FROM properties WHERE is_active = true ORDER BY id",
+  );
+
+  let seeded = 0;
+  for (let day = 89; day >= 0; day -= 1) {
+    // Gentle upward trend plus weekday variation, so the chart reads naturally.
+    const base = 2 + Math.floor((89 - day) / 22);
+    const count = Math.max(0, base + (day % 7 === 0 ? 3 : 0) - (day % 5 === 0 ? 1 : 0));
+
+    for (let n = 0; n < count; n += 1) {
+      const property = active[(day + n) % active.length]!;
+      const name = names[(day + n) % names.length]!;
+      const email = `${name.toLowerCase().replace(/[^a-z]/g, ".")}@example.com`;
+      // Older enquiries are more likely to have been actioned.
+      const status = day > 30 ? (n % 4 === 0 ? "new" : "contacted") : n % 3 === 0 ? "contacted" : "new";
+
+      await query(
+        `INSERT INTO enquiries
+           (property_id, name, email, phone, message, status, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, now() - ($7 || ' days')::interval - ($8 || ' hours')::interval)`,
+        [
+          property.id,
+          name,
+          email,
+          `+4477009${String(1000 + seeded).slice(-5)}`,
+          "Is this available for the coming academic year? I'd like to arrange a viewing.",
+          status,
+          day,
+          (n * 5 + day) % 24,
+        ],
+      );
+      seeded += 1;
+    }
+  }
+
   const passwordHash = await bcrypt.hash(adminPassword, 12);
   await query(
     `INSERT INTO admin_users (email, password_hash, role) VALUES ($1, $2, $3)`,
@@ -236,7 +393,15 @@ async function seed() {
     "SELECT count(DISTINCT university)::int AS count FROM properties",
   );
 
-  console.log(`✓ ${propertyCount} properties across ${cityCount} cities and ${uniCount} universities`);
+  const [{ count: enquiryCount }] = await query<{ count: number }>(
+    "SELECT count(*)::int AS count FROM enquiries",
+  );
+  const [{ count: hiddenCount }] = await query<{ count: number }>(
+    "SELECT count(*)::int AS count FROM properties WHERE is_active = false",
+  );
+
+  console.log(`✓ ${propertyCount} properties across ${cityCount} cities and ${uniCount} universities (${hiddenCount} hidden)`);
+  console.log(`✓ ${enquiryCount} enquiries backdated across 90 days`);
   console.log(`✓ admin user: ${adminEmail} (role: super_admin)`);
 }
 

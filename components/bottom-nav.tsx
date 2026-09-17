@@ -3,13 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-import { NAV_ITEMS } from "@/lib/nav";
+import { ADMIN_NAV_ITEMS, NAV_ITEMS } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 
 /** Mobile-only bottom tab bar. Native apps put navigation at the thumb, and an
  *  installed PWA has no browser chrome to fall back on. See CLAUDE.md §5a. */
-export function BottomNav() {
+export function BottomNav({ isAdmin = false }: { isAdmin?: boolean }) {
   const pathname = usePathname();
+  const items = isAdmin ? ADMIN_NAV_ITEMS : NAV_ITEMS;
 
   return (
     <nav
@@ -20,9 +21,13 @@ export function BottomNav() {
       )}
     >
       <ul className="grid grid-cols-3">
-        {NAV_ITEMS.map(({ href, label, Icon }) => {
+        {items.map(({ href, label, Icon }) => {
           const active =
-            href === "/" ? pathname === "/" : pathname.startsWith(href);
+            href === "/"
+              ? pathname === "/"
+              : href === "/admin"
+                ? pathname === "/admin"
+                : pathname.startsWith(href);
 
           return (
             <li key={href}>

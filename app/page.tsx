@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { SearchX } from "lucide-react";
 
 import { FilterBar } from "@/components/filter-bar";
+import { ResultsGrid } from "@/components/results-grid";
 import { Hero } from "@/components/hero";
 import { PropertyCard, PropertyCardSkeleton } from "@/components/property-card";
 import { Button } from "@/components/ui/button";
@@ -65,7 +66,7 @@ async function PropertyResults({ searchParams }: { searchParams: SearchParams })
       {page.items.length === 0 ? (
         <EmptyState />
       ) : (
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        <ResultsGrid>
           {page.items.map((property, index) => (
             <PropertyCard
               key={property.id}
@@ -75,7 +76,7 @@ async function PropertyResults({ searchParams }: { searchParams: SearchParams })
               signedIn={Boolean(student)}
             />
           ))}
-        </div>
+        </ResultsGrid>
       )}
 
         {page.totalPages > 1 ? (
@@ -110,27 +111,27 @@ function Pagination({
       aria-label="Pagination"
       className="flex items-center justify-center gap-3 pt-4"
     >
-      <Button
-        render={<Link href={linkFor(page - 1)} />}
-        variant="outline"
-        size="lg"
-        disabled={page <= 1}
-        aria-disabled={page <= 1}
-      >
-        Previous
-      </Button>
+      {page <= 1 ? (
+        <Button variant="outline" size="lg" disabled>
+          Previous
+        </Button>
+      ) : (
+        <Button render={<Link href={linkFor(page - 1)} />} variant="outline" size="lg">
+          Previous
+        </Button>
+      )}
       <span className="text-sm text-muted-foreground tabular-nums">
         Page {page} of {totalPages}
       </span>
-      <Button
-        render={<Link href={linkFor(page + 1)} />}
-        variant="outline"
-        size="lg"
-        disabled={page >= totalPages}
-        aria-disabled={page >= totalPages}
-      >
-        Next
-      </Button>
+      {page >= totalPages ? (
+        <Button variant="outline" size="lg" disabled>
+          Next
+        </Button>
+      ) : (
+        <Button render={<Link href={linkFor(page + 1)} />} variant="outline" size="lg">
+          Next
+        </Button>
+      )}
     </nav>
   );
 }

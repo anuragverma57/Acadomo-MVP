@@ -26,13 +26,19 @@ CREATE TABLE properties (
   description     text        NOT NULL,
   amenities       text[]      NOT NULL DEFAULT '{}',
   image_url       text        NOT NULL,
-  created_at      timestamptz NOT NULL DEFAULT now()
+  -- Soft disable: hides a property from students without deleting it, so its
+  -- enquiry history survives for analytics.
+  is_active       boolean     NOT NULL DEFAULT true,
+  created_at      timestamptz NOT NULL DEFAULT now(),
+  updated_at      timestamptz NOT NULL DEFAULT now()
 );
 
 CREATE INDEX properties_city_idx       ON properties (city);
 CREATE INDEX properties_university_idx ON properties (university);
 CREATE INDEX properties_price_idx      ON properties (price_per_week);
 CREATE INDEX properties_room_type_idx  ON properties (room_type);
+-- Public listings always filter on is_active, so it leads the composite.
+CREATE INDEX properties_active_idx     ON properties (is_active, created_at DESC);
 
 
 -- ---------------------------------------------------------------------------

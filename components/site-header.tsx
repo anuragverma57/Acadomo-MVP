@@ -2,30 +2,36 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useScrollDirection } from "@/hooks/use-scroll-direction";
 
+import { AdminSignOut } from "@/components/admin-sign-out";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
-import { NAV_ITEMS } from "@/lib/nav";
+import { ADMIN_NAV_ITEMS, NAV_ITEMS } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 
-export function SiteHeader({ studentEmail }: { studentEmail?: string | null }) {
+export function SiteHeader({
+  studentEmail,
+  adminEmail,
+}: {
+  studentEmail?: string | null;
+  adminEmail?: string | null;
+}) {
   const pathname = usePathname();
-  const [scrolled, setScrolled] = useState(false);
+  const isAdmin = Boolean(adminEmail);
+  const navItems = isAdmin ? ADMIN_NAV_ITEMS : NAV_ITEMS;
 
-  // Transparent over the hero, solid once scrolled — the header should not
-  // compete with the headline on first paint.
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 24);
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
+  // Transparent over the hero, solid once scrolled; retracts on scroll down
+  // and returns on scroll up (mobile only — desktop has space to spare).
+  const { hidden, scrolled } = useScrollDirection();
 
   return (
     <header
       className={cn(
-        "sticky top-0 z-50 pt-[env(safe-area-inset-top,0px)] transition-colors duration-200",
+        "sticky top-0 z-50 pt-[env(safe-area-inset-top,0px)]",
+        "transition-[transform,background-color,border-color] duration-200 ease-out",
+        // Retract only on phones; motion-reduce keeps it pinned.
+        hidden ? "max-md:-translate-y-full motion-reduce:translate-y-0" : "translate-y-0",
         scrolled
           ? "border-b border-border bg-background/80 backdrop-blur-md"
           : // Must paint a background on mobile: viewport-fit=cover extends the
@@ -43,9 +49,13 @@ export function SiteHeader({ studentEmail }: { studentEmail?: string | null }) {
         </Link>
 
         <nav aria-label="Primary" className="hidden md:flex md:gap-1">
-          {NAV_ITEMS.map(({ href, label }) => {
+          {navItems.map(({ href, label }) => {
             const active =
-              href === "/" ? pathname === "/" : pathname.startsWith(href);
+              href === "/"
+                ? pathname === "/"
+                : href === "/admin"
+                  ? pathname === "/admin"
+                  : pathname.startsWith(href);
 
             return (
               <Link
@@ -69,7 +79,14 @@ export function SiteHeader({ studentEmail }: { studentEmail?: string | null }) {
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
-          {studentEmail ? (
+          {isAdmin ? (
+            <>
+              <span className="hidden max-w-[20ch] truncate text-sm text-muted-foreground md:block">
+                {adminEmail}
+              </span>
+              <AdminSignOut />
+            </>
+          ) : studentEmail ? (
             <Link
               href="/account"
               className="hidden max-w-[18ch] truncate text-sm text-muted-foreground transition-colors hover:text-foreground md:block"

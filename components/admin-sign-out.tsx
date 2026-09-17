@@ -24,9 +24,10 @@ export function AdminSignOut() {
   return (
     <Button
       variant="outline"
+      size="sm"
       onClick={signOut}
       disabled={pending}
-      className="gap-2"
+      className="gap-1.5"
     >
       <LogOut className="size-4" aria-hidden />
       Sign out

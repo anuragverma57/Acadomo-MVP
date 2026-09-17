@@ -44,7 +44,9 @@ It installs to a phone home screen as a PWA and works offline for browsing.
 **As a student:** open the [live demo](https://acadomo-mvp.vercel.app/), filter
 by city or university, open a property, send an enquiry.
 
-**As staff:** sign in with the same form. Enter a staff email and it asks for a
+**As staff:** sign in with the same form. Staff get their own shell — Enquiries
+and Properties, no student tabs. Both lists have search, filters, sorting and
+pagination; properties can be created, edited, and shown/hidden. Enter a staff email and it asks for a
 password instead of a code, then lands on the admin dashboard where enquiries can
 be marked contacted. Credentials available on request.
 
@@ -70,7 +72,7 @@ Share → Add to Home Screen. It launches standalone, with no browser chrome.
 | Validation | Zod | One schema shared by client and server |
 | Auth | `jose` JWT in httpOnly cookies | Two separate realms: admin and student |
 | Email | Resend | One-time sign-in codes |
-| Tests | Vitest | 109 tests over the security-relevant logic |
+| Tests | Vitest | 129 tests over the security-relevant logic |
 | Hosting | Vercel | Git push deploys; preview URL per branch |
 
 ---
@@ -91,7 +93,7 @@ lib/
   validation.ts       Zod schemas shared by client and server
 db/
   schema.sql          6 tables, 9 explicit indexes, CHECK constraints
-  seed.ts             15 properties across 5 cities and 8 universities
+  seed.ts             59 properties / 10 cities / 22 universities, 341 enquiries
 public/sw.js          hand-written service worker
 ```
 
@@ -112,7 +114,7 @@ added CORS, cross-origin cookies, and a second deploy target for no gain here.
 ```
 properties      id, slug, title, city, country, university,
                 price_per_week (integer minor units), room_type,
-                amenities text[], image_url
+                amenities text[], image_url, is_active, updated_at
 enquiries       property_id FK, student_id FK (nullable), name, email,
                 phone, message, status (new | contacted)
 students        email (citext, unique), name, email_verified_at
@@ -164,6 +166,12 @@ requires the exact value `1`, and is **force-disabled the moment
 `RESEND_API_KEY` is set** — real email and code-leaking can never both be on.
 Five tests cover that gate.
 
+**Property visibility** — hiding a listing is a soft `is_active = false`, and
+the filter is applied **in the query layer**: the listing, detail page, detail
+API, filter dropdowns, saved shortlist and the enquiry endpoint all reject
+hidden rows. The UI omitting a row is never the boundary. Soft-disable also
+keeps enquiry history intact for analytics.
+
 **Service worker** — never caches `/api/auth/*`, `/api/admin/*`, `/api/saved/*`,
 any authenticated page, or any non-GET request. A cached authenticated response
 would be served to whoever opened the app next.
@@ -185,7 +193,7 @@ cp .env.example .env.local          # then fill in the values
 
 createdb acadomo_dev
 npm run db:reset                    # apply schema
-npm run db:seed                     # 15 properties + admin user
+npm run db:seed                     # 59 properties, 341 enquiries, admin user
 
 npm run dev
 ```
@@ -211,7 +219,7 @@ enabling it anywhere real.
 | Script | |
 | --- | --- |
 | `npm run dev` | Dev server |
-| `npm test` | 109 tests |
+| `npm test` | 129 tests |
 | `npm run db:check` | Verify DB connection and TLS |
 | `npm run db:reset` / `db:seed` | Rebuild and populate |
 | `npm run lint` / `typecheck` | Static checks |
@@ -220,7 +228,7 @@ enabling it anywhere real.
 
 ## Tests
 
-109 tests, deliberately narrow. They cover the logic where a bug is a
+129 tests, deliberately narrow. They cover the logic where a bug is a
 *vulnerability* rather than a visual glitch:
 
 - **OTP** — expiry, the 5-attempt cap, single-use, and that a correct code is
@@ -232,6 +240,11 @@ enabling it anywhere real.
 - **Service worker** — the full list of routes that must never be cached
 - **Demo mode** — that leaking the code stays off unless explicitly enabled and
   is disabled automatically once real email is configured
+- **Property visibility** — that the active filter survives alongside other
+  filters and can only be bypassed by an explicit admin opt-in
+- **Admin list filters** — enquiry and property WHERE builders: placeholder
+  numbering, date ranges passed as parameters, injection payloads kept out of
+  the SQL string
 - **Auth** — bcrypt round-trip, rate limiting
 
 **Not covered:** component rendering and end-to-end browser flows. Those were
@@ -249,7 +262,6 @@ Cut scope is a decision, not an omission. Each of these was considered:
 | Google Maps | University and city filters already cover discovery; a map adds an API key and no demo value |
 | CRM integration | No interview value at this scale |
 | Image upload | Storage plumbing; seeded URLs make the same point |
-| Property CRUD UI | Read plus a status update already proves the write path |
 | SMS notifications | Second provider, same pattern as email |
 | i18n | Real work, zero signal here |
 
@@ -280,6 +292,12 @@ this is built that way on purpose. The UI is composed from shadcn/ui primitives
 rather than hand-rolled, so the engineering time went into SQL, auth, validation
 and service layering. Reaching for a component library is what I would do on a
 real team.
+
+**On filter state:** filters live in the URL, so results are shareable and the
+back button works. Controls read through `useOptimistic` rather than
+`searchParams` directly — `router.push` inside a transition leaves the URL stale
+until the server responds, so a control bound to it shows the old value for the
+whole round-trip and then snaps.
 
 **On the rate limiter:** in-memory, so counters reset on cold start and are not
 shared across instances. Correct for a single-instance deployment, wrong at

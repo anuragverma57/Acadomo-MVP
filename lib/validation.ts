@@ -135,6 +135,69 @@ export function safeRedirect(value: unknown, fallback = "/"): string {
   return value;
 }
 
+export const propertyInputSchema = z.object({
+  title: z.string().trim().min(3, "Enter a title").max(160),
+  city: z.string().trim().min(2, "Enter a city").max(80),
+  country: z.string().trim().min(2, "Enter a country").max(80),
+  university: z.string().trim().min(2, "Enter a university").max(160),
+  // Minor units (pence). Kept an integer end to end — never a float.
+  pricePerWeek: z.coerce
+    .number()
+    .int("Price must be a whole number of pence")
+    .positive("Price must be greater than zero")
+    .max(1_000_000, "Price is out of range"),
+  roomType: z.enum(ROOM_TYPES),
+  description: z.string().trim().min(20, "Add a short description").max(4000),
+  amenities: z.array(z.string().trim().min(1).max(60)).max(20).default([]),
+  imageUrl: z.url("Enter a valid image URL").max(1000),
+  isActive: z.boolean().default(true),
+});
+
+export type PropertyInputValues = z.infer<typeof propertyInputSchema>;
+
+export const propertyActiveSchema = z.object({ isActive: z.boolean() });
+
+export const ENQUIRY_SORT_KEYS = ["newest", "oldest", "property"] as const;
+export type EnquirySortKey = (typeof ENQUIRY_SORT_KEYS)[number];
+
+export const DATE_RANGES = ["all", "7d", "30d", "90d"] as const;
+export type DateRange = (typeof DATE_RANGES)[number];
+
+export const enquiryFiltersSchema = z.object({
+  q: optionalText.pipe(z.string().max(100).optional()),
+  status: z.enum(ENQUIRY_STATUSES).optional(),
+  range: z.enum(DATE_RANGES).default("all"),
+  sort: z.enum(ENQUIRY_SORT_KEYS).default("newest"),
+  page: z.coerce.number().int().min(1).max(500).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+});
+
+export type EnquiryFilters = z.infer<typeof enquiryFiltersSchema>;
+
+export const ADMIN_PROPERTY_SORT_KEYS = [
+  "newest",
+  "oldest",
+  "price_asc",
+  "price_desc",
+  "title",
+] as const;
+export type AdminPropertySortKey = (typeof ADMIN_PROPERTY_SORT_KEYS)[number];
+
+export const VISIBILITY_FILTERS = ["all", "active", "hidden"] as const;
+export type VisibilityFilter = (typeof VISIBILITY_FILTERS)[number];
+
+export const adminPropertyFiltersSchema = z.object({
+  q: optionalText.pipe(z.string().max(100).optional()),
+  city: optionalText,
+  roomType: z.enum(ROOM_TYPES).optional(),
+  visibility: z.enum(VISIBILITY_FILTERS).default("all"),
+  sort: z.enum(ADMIN_PROPERTY_SORT_KEYS).default("newest"),
+  page: z.coerce.number().int().min(1).max(500).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+});
+
+export type AdminPropertyFilters = z.infer<typeof adminPropertyFiltersSchema>;
+
 export const enquiryStatusSchema = z.object({
   status: z.enum(ENQUIRY_STATUSES),
 });

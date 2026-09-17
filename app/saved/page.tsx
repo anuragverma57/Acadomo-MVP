@@ -6,6 +6,7 @@ import { Heart } from "lucide-react";
 import { PropertyCard } from "@/components/property-card";
 import { Button } from "@/components/ui/button";
 import { listSavedProperties } from "@/lib/db/queries";
+import { getAdminSession } from "@/lib/auth";
 import { currentStudent } from "@/lib/session";
 
 export const metadata: Metadata = {
@@ -14,6 +15,12 @@ export const metadata: Metadata = {
 };
 
 export default async function SavedPage() {
+  // A signed-in admin has no student account; send them to their own area
+  // rather than showing an empty shortlist.
+  if (await getAdminSession()) {
+    redirect("/admin");
+  }
+
   const student = await currentStudent();
   if (!student) {
     redirect("/signup?next=%2Fsaved");

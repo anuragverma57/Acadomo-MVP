@@ -7,6 +7,7 @@ import { StudentSignOut } from "@/components/student-sign-out";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { listEnquiriesForStudent } from "@/lib/db/queries";
+import { getAdminSession } from "@/lib/auth";
 import { currentStudent } from "@/lib/session";
 
 export const metadata: Metadata = {
@@ -23,6 +24,12 @@ function formatDate(value: Date | string) {
 }
 
 export default async function AccountPage() {
+  // A signed-in admin has no student account; send them to their own area
+  // rather than showing an empty shortlist.
+  if (await getAdminSession()) {
+    redirect("/admin");
+  }
+
   const student = await currentStudent();
   if (!student) {
     redirect("/signup?next=%2Faccount");
